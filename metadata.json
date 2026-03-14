@@ -1,0 +1,8 @@
+{
+  "name": "KL Pay",
+  "description": "Premium campus pre-order and payment app for KL University featuring glassmorphism UI and real-time order tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

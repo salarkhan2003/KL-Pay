@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "merchant", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "outlet": {
+      "title": "Campus Outlet",
+      "description": "A canteen or food stall on campus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isOpen": { "type": "boolean" },
+        "merchantId": { "type": "string" }
+      },
+      "required": ["id", "name", "merchantId"]
+    },
+    "menuItem": {
+      "title": "Menu Item",
+      "description": "Food or drink item available at an outlet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "outletId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "isAvailable": { "type": "boolean" }
+      },
+      "required": ["id", "outletId", "name", "price"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "A student's pre-order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "outletId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "convenienceFee": { "type": "number" },
+        "vendorAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "preparing", "ready", "picked_up", "cancelled"] },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "paid", "failed"] },
+        "paymentId": { "type": "string" },
+        "token": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "outletId", "items", "totalAmount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profiles"
+    },
+    "/outlets/{outletId}": {
+      "schema": "outlet",
+      "description": "Campus food outlets"
+    },
+    "/outlets/{outletId}/menu/{itemId}": {
+      "schema": "menuItem",
+      "description": "Menu items for a specific outlet"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Customer orders"
+    }
+  }
+}

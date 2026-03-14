@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  /* Glassmorphism */
+  --color-glass-bg: rgba(255, 255, 255, 0.1);
+  --color-glass-border: rgba(255, 255, 255, 0.2);
+  
+  /* Claymorphism */
+  --shadow-clay: 8px 8px 16px 0 rgba(0, 0, 0, 0.1), 
+                 -8px -8px 16px 0 rgba(255, 255, 255, 0.8),
+                 inset 4px 4px 8px 0 rgba(0, 0, 0, 0.05),
+                 inset -4px -4px 8px 0 rgba(255, 255, 255, 0.5);
+  --shadow-clay-hover: 4px 4px 8px 0 rgba(0, 0, 0, 0.1), 
+                       -4px -4px 8px 0 rgba(255, 255, 255, 0.8),
+                       inset 2px 2px 4px 0 rgba(0, 0, 0, 0.05),
+                       inset -2px -2px 4px 0 rgba(255, 255, 255, 0.5);
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .glass-dark {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .clay {
+    background: #f0f2f5;
+    box-shadow: var(--shadow-clay);
+    border-radius: 20px;
+    transition: all 0.3s ease;
+  }
+  
+  .clay:active {
+    box-shadow: var(--shadow-clay-hover);
+    transform: scale(0.98);
+  }
+
+  .liquid-glass {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  }
+
+  .liquid-glass-blue {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.5) 0%, rgba(37, 99, 235, 0.2) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(37, 99, 235, 0.3);
+    color: white;
+  }
+
+  .liquid-glass-emerald {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.5) 0%, rgba(5, 150, 105, 0.2) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(16, 185, 129, 0.3);
+    color: white;
+  }
+
+  .liquid-glass-slate {
+    background: linear-gradient(135deg, rgba(71, 85, 105, 0.5) 0%, rgba(30, 41, 59, 0.2) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(71, 85, 105, 0.3);
+    color: white;
+  }
+}
+
+body {
+  background: #f8fafc;
+  color: #1e293b;
+  min-height: 100vh;
+}
+
