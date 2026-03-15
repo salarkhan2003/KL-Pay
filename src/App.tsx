@@ -93,13 +93,33 @@ import {
   CreditCard,
   Store,
   User as UserIcon,
-  Trash2
+  Trash2,
+  BarChart3,
+  TrendingUp,
+  Users,
+  Settings,
+  HelpCircle,
+  Trophy,
+  Flame,
+  Gift,
+  Star,
+  Download,
+  History,
+  MapPin,
+  ScanLine,
+  LayoutDashboard,
+  Archive,
+  Store as StoreIcon,
+  AlertCircle,
+  Shield,
+  UtensilsCrossed,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { UserProfile, Outlet, MenuItem, Order, OrderItem } from './types';
+import { UserProfile, Outlet, MenuItem, Order, OrderItem, SupportTicket } from './types';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -111,10 +131,12 @@ function cn(...inputs: ClassValue[]) {
 const GlassCard: React.FC<{ children: React.ReactNode, className?: string, delay?: number }> = ({ children, className, delay = 0 }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay }}
-    className={cn("liquid-glass rounded-3xl p-6 overflow-hidden", className)}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }}
+    transition={{ duration: 0.6, delay, ease: [0.23, 1, 0.32, 1] }}
+    className={cn("glass-frosted rounded-[32px] p-6 relative overflow-hidden", className)}
   >
+    <div className="absolute top-0 left-0 right-0 h-[1px] bg-white/20" />
     {children}
   </motion.div>
 );
@@ -124,17 +146,34 @@ const ClayButton = ({ children, onClick, className, variant = 'primary', disable
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      "px-6 py-3 font-bold text-sm transition-all active:scale-95 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed",
-      variant === 'primary' && "liquid-glass-blue",
-      variant === 'secondary' && "bg-white text-blue-600 shadow-lg",
-      variant === 'danger' && "bg-red-600 text-white shadow-lg shadow-red-200",
-      variant === 'emerald' && "liquid-glass-emerald",
-      variant === 'slate' && "liquid-glass-slate",
+      "px-6 py-4 font-bold text-sm transition-all active:scale-95 rounded-[24px] disabled:opacity-50 disabled:cursor-not-allowed",
+      variant === 'primary' && "clay-red",
+      variant === 'secondary' && "clay-dark",
+      variant === 'danger' && "bg-red-900/50 text-white border border-red-500/30",
+      variant === 'emerald' && "bg-emerald-900/50 text-white border border-emerald-500/30",
+      variant === 'slate' && "bg-slate-900/50 text-white border border-slate-500/30",
       className
     )}
   >
     {children}
   </button>
+);
+
+const DynamicIsland = () => (
+  <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200]">
+    <motion.div 
+      initial={{ width: 120, height: 36 }}
+      animate={{ width: 140 }}
+      className="bg-black rounded-full flex items-center justify-center px-4 gap-2 shadow-2xl border border-white/10"
+    >
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 2, repeat: Infinity }}
+        className="w-2 h-2 rounded-full bg-klu-red shadow-[0_0_8px_rgba(200,16,46,0.8)]"
+      />
+      <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">KL ONE</span>
+    </motion.div>
+  </div>
 );
 
 // --- Main App ---
@@ -144,7 +183,7 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'outlet' | 'cart' | 'orders' | 'merchant' | 'profile'>('home');
+  const [view, setView] = useState<'home' | 'outlet' | 'cart' | 'orders' | 'merchant' | 'profile' | 'support' | 'admin' | 'merchant_archive' | 'merchant_profile' | 'merchant_menu'>('home');
   const [orderFilter, setOrderFilter] = useState<'active' | 'history'>('active');
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
@@ -160,6 +199,12 @@ export default function App() {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [merchantOrders, setMerchantOrders] = useState<Order[]>([]);
+  const [merchantMenu, setMerchantMenu] = useState<MenuItem[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]); // For Admin
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
 
   // --- Auth & Profile ---
 
@@ -196,7 +241,10 @@ export default function App() {
               uid: u.uid,
               email: u.email || '',
               displayName: u.displayName || 'KLU Student',
-              role: isAdmin ? 'admin' : 'student'
+              role: isAdmin ? 'admin' : 'student',
+              kCoins: 0,
+              streak: 0,
+              block: 'CSE' // Default block
             };
             await setDoc(docRef, newProfile);
             setProfile(newProfile);
@@ -467,16 +515,63 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!profile || profile.role !== 'merchant') return;
+    if (!profile || profile.role !== 'merchant' || !user) return;
     
+    // Find the outlet owned by this merchant
+    const merchantOutlet = outlets.find(o => o.merchantId === user.uid);
+    if (!merchantOutlet) return;
+
     // Listen for Merchant Orders (orders for their outlet)
-    // In a real app, we'd fetch the outletId for this merchant first
     const q = query(
       collection(db, 'orders'),
+      where('outletId', '==', merchantOutlet.id),
       orderBy('createdAt', 'desc')
     );
     const unsub = onSnapshot(q, (snapshot) => {
       setMerchantOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orders', setAppError);
+    });
+    return unsub;
+  }, [profile, user, outlets]);
+
+  // Fetch Merchant Menu
+  useEffect(() => {
+    if (!profile || profile.role !== 'merchant' || !user) return;
+
+    const merchantOutlet = outlets.find(o => o.merchantId === user.uid);
+    if (!merchantOutlet) return;
+
+    const q = query(
+      collection(db, `outlets/${merchantOutlet.id}/menu`),
+      orderBy('name')
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setMerchantMenu(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `outlets/${merchantOutlet.id}/menu`, setAppError);
+    });
+    return unsub;
+  }, [profile, user, outlets]);
+
+  // Fetch Support Tickets
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'support'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'support', setAppError);
+    });
+    return unsub;
+  }, [user]);
+
+  // Fetch All Orders (Admin only)
+  useEffect(() => {
+    if (profile?.role !== 'admin') return;
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setAllOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'orders', setAppError);
     });
@@ -530,6 +625,30 @@ export default function App() {
       }
       return prev.filter(i => i.id !== itemId);
     });
+  };
+
+  const submitTicket = async () => {
+    if (!user || !supportSubject || !supportMessage) return;
+    setIsSubmittingTicket(true);
+    try {
+      const ticketId = Math.random().toString(36).substring(2, 15);
+      const newTicket: SupportTicket = {
+        id: ticketId,
+        userId: user.uid,
+        subject: supportSubject,
+        message: supportMessage,
+        status: 'open',
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, 'support', ticketId), newTicket);
+      setSupportSubject('');
+      setSupportMessage('');
+      setToast({ message: 'Support ticket submitted!', type: 'success' });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'support', setAppError);
+    } finally {
+      setIsSubmittingTicket(false);
+    }
   };
 
   const filteredOutlets = useMemo(() => {
@@ -639,43 +758,73 @@ export default function App() {
   );
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50">
-      <motion.div 
-        animate={{ rotate: 360 }} 
-        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-        className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
-      />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-crimson-dark overflow-hidden">
+      <div className="relative">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="w-24 h-24 bg-klu-red rounded-full flex items-center justify-center z-10 relative shadow-[0_0_40px_rgba(200,16,46,0.6)]"
+        >
+          <UtensilsCrossed className="w-10 h-10 text-white" />
+        </motion.div>
+        {[1, 2, 3].map((i) => (
+          <motion.div
+            key={i}
+            initial={{ scale: 0.8, opacity: 0.5 }}
+            animate={{ scale: 2.5, opacity: 0 }}
+            transition={{ duration: 2, repeat: Infinity, delay: i * 0.4 }}
+            className="absolute inset-0 border-2 border-klu-red rounded-full"
+          />
+        ))}
+      </div>
+      <motion.h1 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-12 text-display text-4xl font-black text-white tracking-tighter"
+      >
+        KL ONE
+      </motion.h1>
     </div>
   );
 
   if (!user) return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-crimson-dark relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] radial-glow" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] radial-glow" />
+      
       <motion.div 
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="text-center"
+        className="text-center z-10"
       >
-        <div className="w-24 h-24 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-          <CreditCard className="w-12 h-12 text-white" />
+        <div className="w-24 h-24 bg-klu-red rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-[0_20px_40px_rgba(200,16,46,0.4)]">
+          <UtensilsCrossed className="w-12 h-12 text-white" />
         </div>
-        <h1 className="text-4xl font-bold text-slate-900 mb-2">KL Pay</h1>
-        <p className="text-slate-600 mb-8">Premium Campus Dining Experience</p>
-        <ClayButton onClick={login} className="w-64 py-4 text-lg">
-          Sign in with KLU Email
+        <h1 className="text-display text-6xl font-black text-white mb-4 leading-none">KL<br/>ONE</h1>
+        <p className="text-white/50 mb-12 font-medium tracking-wide">Premium Campus Dining</p>
+        <ClayButton onClick={login} className="w-72">
+          Enter the Soul
         </ClayButton>
       </motion.div>
     </div>
   );
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 relative pb-24 font-sans">
+    <div className="max-w-md mx-auto min-h-screen bg-crimson-dark relative pb-24 font-sans selection:bg-klu-red selection:text-white">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[10%] right-[-20%] w-[80%] h-[80%] radial-glow opacity-10" />
+        <div className="absolute bottom-[10%] left-[-20%] w-[80%] h-[80%] radial-glow opacity-10" />
+      </div>
+
+      <DynamicIsland />
+
       {/* Header */}
-      <header className="p-6 flex items-center justify-between sticky top-0 z-50 bg-slate-50/80 backdrop-blur-md">
+      <header className="p-8 pt-16 flex items-center justify-between sticky top-0 z-50 bg-crimson-dark/60 backdrop-blur-xl">
         <div>
-          <h2 className="text-sm font-medium text-slate-500">Welcome back,</h2>
-          <h1 className="text-xl font-bold text-slate-900">{profile?.displayName}</h1>
+          <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
+          <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName}</h1>
         </div>
-        <button onClick={logout} className="p-2 rounded-full bg-white shadow-sm text-slate-400 hover:text-red-500 transition-colors">
+        <button onClick={logout} className="w-12 h-12 rounded-2xl glass-frosted flex items-center justify-center text-white/60 hover:text-klu-red transition-all active:scale-90">
           <LogOut className="w-5 h-5" />
         </button>
       </header>
@@ -692,13 +841,13 @@ export default function App() {
               className="space-y-6"
             >
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
                 <input 
                   type="text" 
                   placeholder="Search for food or outlets..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl shadow-sm border-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="w-full pl-12 pr-4 py-5 bg-white/5 rounded-[24px] border border-white/10 text-white placeholder:text-white/20 focus:ring-2 focus:ring-klu-red/50 transition-all outline-none"
                 />
               </div>
 
@@ -709,8 +858,8 @@ export default function App() {
                       key={block}
                       onClick={() => setBlockFilter(block)}
                       className={cn(
-                        "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all",
-                        blockFilter === block ? "liquid-glass-blue shadow-md" : "bg-white text-slate-500"
+                        "px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                        blockFilter === block ? "clay-red shadow-lg" : "glass-frosted text-white/40"
                       )}
                     >
                       {block} Block
@@ -723,8 +872,8 @@ export default function App() {
                       key={cat}
                       onClick={() => setCategoryFilter(cat)}
                       className={cn(
-                        "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all",
-                        categoryFilter === cat ? "liquid-glass-blue shadow-md" : "bg-white text-slate-500"
+                        "px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                        categoryFilter === cat ? "clay-red shadow-lg" : "glass-frosted text-white/40"
                       )}
                     >
                       {cat}
@@ -734,8 +883,8 @@ export default function App() {
               </div>
 
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold">Campus Outlets</h3>
-                <span className="text-slate-400 text-xs font-medium">{filteredOutlets.length} found</span>
+                <h3 className="text-display text-lg font-black">Campus Outlets</h3>
+                <span className="text-white/20 text-[10px] font-black uppercase tracking-widest">{filteredOutlets.length} found</span>
               </div>
 
               <div className="grid gap-4">
@@ -762,30 +911,31 @@ export default function App() {
                       className="cursor-pointer hover:scale-[1.02] transition-transform"
                     >
                       <div onClick={() => { setSelectedOutlet(outlet); setView('outlet'); }} className="flex gap-4">
-                        <div className="w-20 h-20 rounded-2xl bg-slate-200 overflow-hidden flex-shrink-0">
+                        <div className="w-20 h-20 rounded-2xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10">
                           <img src={outlet.imageUrl || `https://picsum.photos/seed/${outlet.id}/200`} alt={outlet.name} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-lg">{outlet.name}</h4>
-                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
+                            <h4 className="text-display text-base font-black leading-tight">{outlet.name}</h4>
+                            <span className="text-[8px] font-black text-klu-red bg-klu-red/10 border border-klu-red/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
                               {outlet.blockName}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-500 line-clamp-1">{outlet.description}</p>
-                          <div className="flex items-center gap-2 mt-2">
+                          <p className="text-xs text-white/40 line-clamp-1 mt-1">{outlet.description}</p>
+                          <div className="flex items-center gap-2 mt-3">
                             <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                              outlet.isOpen ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                              "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-[0.15em]",
+                              outlet.isOpen ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                             )}>
                               {outlet.isOpen ? 'Open' : 'Closed'}
                             </span>
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> 15-20 mins
-                            </span>
+                            <div className="flex items-center gap-1 text-white/20 text-[8px] font-black">
+                              <Star className="w-2.5 h-2.5 text-klu-red fill-klu-red" />
+                              <span>4.5</span>
+                            </div>
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-slate-300 self-center" />
+                        <ChevronRight className="w-5 h-5 text-white/10 self-center" />
                       </div>
                     </GlassCard>
                   ))
@@ -802,33 +952,33 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              <button onClick={() => setView('home')} className="flex items-center gap-2 text-slate-500 font-medium">
+              <button onClick={() => setView('home')} className="flex items-center gap-2 text-white/40 font-medium">
                 <ArrowLeft className="w-5 h-5" /> Back to Campus
               </button>
 
-              <div className="relative h-48 rounded-3xl overflow-hidden shadow-lg">
+              <div className="relative h-56 rounded-[40px] overflow-hidden shadow-2xl border border-white/10">
                 <img src={selectedOutlet.imageUrl || `https://picsum.photos/seed/${selectedOutlet.id}/400`} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
-                  <h2 className="text-2xl font-bold text-white">{selectedOutlet.name}</h2>
-                  <p className="text-white/80 text-sm">{selectedOutlet.description}</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-crimson-dark/90 via-crimson-dark/40 to-transparent flex flex-col justify-end p-8">
+                  <h2 className="text-display text-3xl font-black text-white">{selectedOutlet.name}</h2>
+                  <p className="text-white/60 text-sm font-medium">{selectedOutlet.description}</p>
                 </div>
               </div>
 
-              <div className="space-y-4 pb-24">
-                <h3 className="text-lg font-bold">Menu</h3>
+              <div className="space-y-4 pb-32">
+                <h3 className="text-display text-xl font-black">Menu</h3>
                 {menuItems.map((item, idx) => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm">
-                    <div className="flex gap-3">
-                      <div className="w-16 h-16 rounded-xl bg-slate-100 overflow-hidden">
+                  <GlassCard key={item.id} className="flex items-center justify-between p-4">
+                    <div className="flex gap-4">
+                      <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
                         <img src={item.imageUrl || `https://picsum.photos/seed/${item.id}/100`} className="w-full h-full object-cover" />
                       </div>
-                      <div>
-                        <h4 className="font-bold">{item.name}</h4>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-500">₹{item.price}</p>
+                      <div className="flex flex-col justify-center">
+                        <h4 className="text-display font-black text-lg">{item.name}</h4>
+                        <div className="flex items-center gap-3">
+                          <p className="text-sm font-black text-klu-red">₹{item.price}</p>
                           {item.prepTime && (
-                            <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                              <Clock className="w-2 h-2" /> {item.prepTime}
+                            <span className="text-[10px] text-white/30 font-black uppercase tracking-widest flex items-center gap-1">
+                              <Clock className="w-2.5 h-2.5" /> {item.prepTime}
                             </span>
                           )}
                         </div>
@@ -836,22 +986,22 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-3">
                       {cart.find(i => i.id === item.id) ? (
-                        <div className="flex items-center gap-3 bg-blue-50 rounded-full px-2 py-1">
-                          <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-blue-600">
+                        <div className="flex items-center gap-3 bg-white/5 rounded-full p-1 border border-white/10">
+                          <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors">
                             <Minus className="w-4 h-4" />
                           </button>
-                          <span className="font-bold text-blue-600">{cart.find(i => i.id === item.id)?.quantity}</span>
-                          <button onClick={() => addToCart(item)} className="w-8 h-8 rounded-full liquid-glass-blue shadow-sm flex items-center justify-center text-white">
+                          <span className="font-black text-white px-1">{cart.find(i => i.id === item.id)?.quantity}</span>
+                          <button onClick={() => addToCart(item)} className="w-10 h-10 rounded-full clay-red flex items-center justify-center text-white">
                             <Plus className="w-4 h-4" />
                           </button>
                         </div>
                       ) : (
-                        <button onClick={() => addToCart(item)} className="w-10 h-10 rounded-full liquid-glass-blue text-white flex items-center justify-center shadow-lg">
-                          <Plus className="w-6 h-6" />
+                        <button onClick={() => addToCart(item)} className="w-12 h-12 rounded-full clay-red text-white flex items-center justify-center shadow-lg">
+                          <Plus className="w-7 h-7" />
                         </button>
                       )}
                     </div>
-                  </div>
+                  </GlassCard>
                 ))}
               </div>
 
@@ -863,17 +1013,17 @@ export default function App() {
                 >
                   <ClayButton 
                     onClick={() => setView('cart')}
-                    className="w-full py-4 flex items-center justify-between px-8 shadow-2xl"
+                    className="w-full py-5 flex items-center justify-between px-8 shadow-2xl"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                        <ShoppingCart className="w-5 h-5" />
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center border border-white/30">
+                        <ShoppingCart className="w-6 h-6" />
                       </div>
-                      <span className="font-bold">{cart.length} Items</span>
+                      <span className="text-display font-black text-lg">{cart.length} Items</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-lg">₹{cartTotal}</span>
-                      <ChevronRight className="w-5 h-5" />
+                      <span className="text-display font-black text-2xl">₹{cartTotal}</span>
+                      <ChevronRight className="w-6 h-6" />
                     </div>
                   </ClayButton>
                 </motion.div>
@@ -888,44 +1038,44 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              <h2 className="text-2xl font-bold">Your Tray</h2>
+              <h2 className="text-display text-4xl font-black">Your Tray</h2>
               
               {cart.length === 0 ? (
-                <div className="text-center py-12">
-                  <ChefHat className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                  <p className="text-slate-400">Your tray is empty. Grab some food!</p>
-                  <ClayButton onClick={() => setView('home')} variant="primary" className="mt-6">Browse Outlets</ClayButton>
+                <div className="text-center py-20 glass-frosted rounded-[40px] border border-white/10">
+                  <ChefHat className="w-20 h-20 text-white/10 mx-auto mb-4" />
+                  <p className="text-white/30 font-medium">Your tray is empty. Grab some food!</p>
+                  <ClayButton onClick={() => setView('home')} className="mt-8">Browse Outlets</ClayButton>
                 </div>
               ) : (
                 <>
                   <div className="space-y-4">
                     {cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm">
+                      <GlassCard key={item.id} className="flex items-center justify-between p-5">
                         <div>
-                          <h4 className="font-bold">{item.name}</h4>
-                          <p className="text-sm text-slate-500">₹{item.price} x {item.quantity}</p>
+                          <h4 className="text-display font-black text-lg">{item.name}</h4>
+                          <p className="text-sm text-white/40 font-medium">₹{item.price} x {item.quantity}</p>
                         </div>
-                        <p className="font-bold text-blue-600">₹{item.price * item.quantity}</p>
-                      </div>
+                        <p className="text-display font-black text-xl text-klu-red">₹{item.price * item.quantity}</p>
+                      </GlassCard>
                     ))}
                   </div>
 
-                  <GlassCard className="space-y-3">
-                    <div className="flex justify-between text-slate-600">
+                  <GlassCard className="space-y-4 p-6">
+                    <div className="flex justify-between text-white/60 font-medium">
                       <span>Subtotal</span>
-                      <span>₹{cartTotal}</span>
+                      <span className="font-bold">₹{cartTotal}</span>
                     </div>
-                    <div className="flex justify-between text-slate-600">
+                    <div className="flex justify-between text-white/60 font-medium">
                       <span>Convenience Fee</span>
-                      <span>₹1</span>
+                      <span className="font-bold">₹1</span>
                     </div>
-                    <div className="pt-3 border-t border-white/20 flex justify-between font-bold text-lg">
-                      <span>Total</span>
-                      <span className="text-blue-600">₹{cartTotal + 1}</span>
+                    <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                      <span className="text-display font-black text-xl">Total</span>
+                      <span className="text-display font-black text-3xl text-klu-red">₹{cartTotal + 1}</span>
                     </div>
                   </GlassCard>
 
-                  <ClayButton onClick={handleCheckout} className="w-full py-4 text-lg">
+                  <ClayButton onClick={handleCheckout} className="w-full py-5 text-xl">
                     Pay via UPI (Cashfree)
                   </ClayButton>
                 </>
@@ -1004,6 +1154,15 @@ export default function App() {
                             )}>
                               {order.status.replace('_', ' ')}
                             </span>
+                            {(order.status === 'picked_up' || order.status === 'cancelled') && (
+                              <ClayButton 
+                                onClick={() => reorder(order.items)}
+                                className="px-4 py-1.5 text-[10px]"
+                                variant="secondary"
+                              >
+                                Reorder
+                              </ClayButton>
+                            )}
                             {(order.status === 'pending' || orderFilter === 'history') && (
                               <button 
                                 onClick={() => setDeleteConfirmId(order.id)}
@@ -1011,14 +1170,6 @@ export default function App() {
                                 title={order.status === 'pending' ? "Delete Pending Order" : "Delete Order from History"}
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                            {(order.status === 'picked_up' || order.status === 'cancelled') && (
-                              <button 
-                                onClick={() => reorder(order.items)}
-                                className="text-blue-600 text-[10px] font-bold flex items-center gap-1 hover:underline"
-                              >
-                                <Plus className="w-3 h-3" /> Reorder
                               </button>
                             )}
                           </div>
@@ -1057,146 +1208,133 @@ export default function App() {
           {view === 'profile' && (
             <motion.div 
               key="profile"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
               className="space-y-6"
             >
-              <h2 className="text-2xl font-bold">Profile & Settings</h2>
-              
-              <GlassCard className="flex flex-col items-center text-center space-y-4">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
-                    {user?.photoURL ? (
-                      <img src={user.photoURL} className="w-full h-full object-cover" />
-                    ) : (
-                      <UserIcon className="w-12 h-12 text-blue-500" />
-                    )}
-                  </div>
-                  <button className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg">
-                    <Plus className="w-3 h-3" />
-                  </button>
+              <h2 className="text-display text-4xl font-black">Profile</h2>
+              <GlassCard className="flex flex-col items-center p-8 text-center">
+                <div className="w-24 h-24 rounded-full bg-klu-red/20 p-1 border-2 border-klu-red/30 mb-4">
+                  <img src={profile?.photoURL || `https://picsum.photos/seed/${profile?.uid}/200`} className="w-full h-full rounded-full object-cover" />
                 </div>
-                
                 <div className="w-full">
                   {isEditingName ? (
-                    <div className="flex flex-col items-center gap-3">
+                    <div className="space-y-3">
                       <input 
                         type="text" 
-                        value={newName}
+                        value={newName} 
                         onChange={(e) => setNewName(e.target.value)}
-                        placeholder="Enter new name"
-                        className="w-full max-w-[200px] px-4 py-2 bg-white rounded-xl shadow-inner border border-slate-200 text-center font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                        autoFocus
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-center font-bold outline-none focus:ring-2 focus:ring-klu-red"
+                        placeholder="Enter your name"
                       />
                       <div className="flex gap-2">
                         <ClayButton 
-                          onClick={handleSaveName}
-                          className="px-4 py-1.5 text-xs"
+                          onClick={() => updateProfile({ displayName: newName }).then(() => setIsEditingName(false))}
+                          className="flex-1 py-3"
                         >
                           Save
                         </ClayButton>
-                        <ClayButton 
+                        <button 
                           onClick={() => setIsEditingName(false)}
-                          variant="secondary"
-                          className="px-4 py-1.5 text-xs"
+                          className="flex-1 py-3 bg-white/5 text-white/60 font-bold rounded-2xl hover:bg-white/10 transition-colors"
                         >
                           Cancel
-                        </ClayButton>
+                        </button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <h3 className="text-xl font-bold">{profile?.displayName}</h3>
-                      <p className="text-slate-500 text-sm">{profile?.email}</p>
+                      <h3 className="text-display text-2xl font-black">{profile?.displayName}</h3>
+                      <p className="text-white/40 font-medium">{profile?.email}</p>
                     </>
                   )}
-                  <span className="mt-2 inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                  <span className="mt-4 inline-block px-4 py-1.5 rounded-full bg-klu-red text-white text-[10px] font-black uppercase tracking-widest">
                     {profile?.role}
                   </span>
                 </div>
               </GlassCard>
 
               <div className="space-y-4">
-                <h3 className="text-lg font-bold">Account Settings</h3>
-                <div className="bg-white rounded-3xl p-2 shadow-sm space-y-1">
+                <h3 className="text-display text-xl font-black">Account Settings</h3>
+                <div className="glass-frosted rounded-[32px] p-2 border border-white/10 space-y-1">
                   <button 
                     onClick={() => {
                       setNewName(profile?.displayName || '');
                       setIsEditingName(true);
                     }}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors"
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 rounded-2xl transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                      <div className="w-10 h-10 rounded-xl bg-klu-red/20 flex items-center justify-center text-klu-red border border-klu-red/30">
                         <UserIcon className="w-5 h-5" />
                       </div>
-                      <span className="font-medium">Edit Profile</span>
+                      <span className="font-bold">Edit Profile</span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300" />
+                    <ChevronRight className="w-5 h-5 text-white/20" />
                   </button>
 
                   {profile?.role === 'admin' && (
                     <button 
                       onClick={seedCampusData}
                       disabled={isSeeding}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors disabled:opacity-50"
+                      className="w-full flex items-center justify-between p-4 hover:bg-white/5 rounded-2xl transition-colors disabled:opacity-50"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 border border-emerald-500/30">
                           {isSeeding ? (
                             <motion.div 
                               animate={{ rotate: 360 }} 
                               transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                              className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full"
+                              className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"
                             />
                           ) : (
                             <Store className="w-5 h-5" />
                           )}
                         </div>
-                        <span className="font-medium">{isSeeding ? 'Seeding...' : 'Seed Campus Data'}</span>
+                        <span className="font-bold">{isSeeding ? 'Seeding...' : 'Seed Campus Data'}</span>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-slate-300" />
+                      <ChevronRight className="w-5 h-5 text-white/20" />
                     </button>
                   )}
-                  <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <button className="w-full flex items-center justify-between p-4 hover:bg-white/5 rounded-2xl transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 border border-amber-500/30">
                         <CreditCard className="w-5 h-5" />
                       </div>
-                      <span className="font-medium">Payment Methods</span>
+                      <span className="font-bold">Payment Methods</span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300" />
+                    <ChevronRight className="w-5 h-5 text-white/20" />
                   </button>
                   <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-                        <ChefHat className="w-5 h-5" />
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-500 border border-purple-500/30">
+                        <Shield className="w-5 h-5" />
                       </div>
-                      <span className="font-medium">Merchant Mode</span>
+                      <span className="font-bold">Account Role</span>
                     </div>
-                    <button 
-                      onClick={() => updateProfile({ role: profile?.role === 'merchant' ? 'student' : 'merchant' })}
-                      className={cn(
-                        "w-12 h-6 rounded-full transition-colors relative",
-                        profile?.role === 'merchant' ? "bg-blue-600" : "bg-slate-200"
-                      )}
+                    <select 
+                      value={profile?.role} 
+                      onChange={(e) => updateProfile({ role: e.target.value as any })}
+                      className="bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase px-3 py-2 outline-none focus:ring-2 focus:ring-klu-red text-white"
                     >
-                      <div className={cn(
-                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                        profile?.role === 'merchant' ? "right-1" : "left-1"
-                      )} />
-                    </button>
+                      <option value="student" className="bg-crimson-dark">Student</option>
+                      <option value="merchant" className="bg-crimson-dark">Merchant</option>
+                      <option value="admin" className="bg-crimson-dark">Admin</option>
+                    </select>
                   </div>
                 </div>
 
-                <h3 className="text-lg font-bold">Support</h3>
-                <div className="bg-white rounded-3xl p-2 shadow-sm space-y-1">
-                  <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors">
-                    <span className="font-medium">Help Center</span>
-                    <ChevronRight className="w-5 h-5 text-slate-300" />
+                <h3 className="text-display text-xl font-black">Support</h3>
+                <div className="glass-frosted rounded-[32px] p-2 border border-white/10 space-y-1">
+                  <button 
+                    onClick={() => setView('support')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 rounded-2xl transition-colors"
+                  >
+                    <span className="font-bold">Help Center</span>
+                    <ChevronRight className="w-5 h-5 text-white/20" />
                   </button>
-                  <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors text-red-500" onClick={logout}>
-                    <span className="font-medium">Sign Out</span>
+                  <button className="w-full flex items-center justify-between p-4 hover:bg-white/5 rounded-2xl transition-colors text-klu-red" onClick={logout}>
+                    <span className="font-bold">Sign Out</span>
                     <LogOut className="w-5 h-5" />
                   </button>
                 </div>
@@ -1212,49 +1350,332 @@ export default function App() {
               className="space-y-6"
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Merchant Dashboard</h2>
-                <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">Live</span>
+                <h2 className="text-display text-3xl font-black">Active Orders</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => setView('merchant_archive')} className="p-3 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-klu-red transition-colors">
+                    <Archive className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setView('merchant_profile')} className="p-3 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-klu-red transition-colors">
+                    <Settings className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid gap-4">
-                {merchantOrders.map(order => (
-                  <div key={order.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                    <div className="flex justify-between">
-                      <div>
-                        <h4 className="font-bold text-lg">Token: #{order.token}</h4>
-                        <p className="text-sm text-slate-500">{order.items.length} items • ₹{order.vendorAmount}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-slate-400">Order ID</p>
-                        <p className="text-xs font-mono">{order.id.slice(-6)}</p>
-                      </div>
-                    </div>
+                {merchantOrders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length === 0 ? (
+                  <div className="text-center py-16 glass-frosted rounded-[40px] border border-dashed border-white/10">
+                    <Clock className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/30 font-medium">No active orders right now.</p>
+                  </div>
+                ) : (
+                  merchantOrders
+                    .filter(o => ['pending', 'preparing', 'ready'].includes(o.status))
+                    .map(order => (
+                      <GlassCard key={order.id} className="p-6 space-y-4">
+                        <div className="flex justify-between">
+                          <div>
+                            <h4 className="text-display text-lg font-black">Token: #{order.token}</h4>
+                            <p className="text-sm text-white/40 font-medium">{order.items.length} items • ₹{order.vendorAmount}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={cn(
+                              "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                              order.status === 'pending' && "bg-amber-500/20 text-amber-500 border border-amber-500/30",
+                              order.status === 'preparing' && "bg-klu-red/20 text-klu-red border border-klu-red/30",
+                              order.status === 'ready' && "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
+                            )}>
+                              {order.status}
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="bg-slate-50 p-3 rounded-xl space-y-1">
-                      {order.items.map(item => (
-                        <p key={item.id} className="text-sm font-medium">{item.quantity}x {item.name}</p>
-                      ))}
-                    </div>
+                        <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2">
+                          {order.items.map(item => (
+                            <p key={item.id} className="text-sm font-bold flex justify-between">
+                              <span className="text-white/60">{item.quantity}x</span>
+                              <span>{item.name}</span>
+                            </p>
+                          ))}
+                        </div>
 
-                    <div className="flex gap-2">
-                      {order.status === 'pending' && (
-                        <ClayButton onClick={() => updateOrderStatus(order.id, 'preparing')} className="flex-1">
-                          Start Preparing
-                        </ClayButton>
-                      )}
-                      {order.status === 'preparing' && (
-                        <ClayButton onClick={() => updateOrderStatus(order.id, 'ready')} className="flex-1" variant="emerald">
-                          Mark Ready
-                        </ClayButton>
-                      )}
-                      {order.status === 'ready' && (
-                        <ClayButton onClick={() => updateOrderStatus(order.id, 'picked_up')} className="flex-1" variant="slate">
-                          Confirm Pickup
-                        </ClayButton>
-                      )}
+                        <div className="flex gap-2">
+                          {order.status === 'pending' && (
+                            <ClayButton onClick={() => updateOrderStatus(order.id, 'preparing')} className="flex-1">
+                              Start Preparing
+                            </ClayButton>
+                          )}
+                          {order.status === 'preparing' && (
+                            <ClayButton onClick={() => updateOrderStatus(order.id, 'ready')} className="flex-1">
+                              Mark Ready
+                            </ClayButton>
+                          )}
+                          {order.status === 'ready' && (
+                            <ClayButton onClick={() => updateOrderStatus(order.id, 'picked_up')} className="flex-1">
+                              Confirm Pickup
+                            </ClayButton>
+                          )}
+                        </div>
+                      </GlassCard>
+                    ))
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'merchant_archive' && (
+            <motion.div 
+              key="merchant_archive"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <button onClick={() => setView('merchant')} className="flex items-center gap-2 text-white/40 font-medium">
+                <ArrowLeft className="w-5 h-5" /> Back to Dashboard
+              </button>
+              <h2 className="text-display text-3xl font-black">Order Archive</h2>
+              <div className="space-y-4">
+                {merchantOrders.filter(o => ['picked_up', 'cancelled'].includes(o.status)).map(order => (
+                  <div key={order.id} className="glass-frosted p-5 rounded-[32px] border border-white/10 flex justify-between items-center">
+                    <div>
+                      <h4 className="text-display font-black">Token: #{order.token}</h4>
+                      <p className="text-[10px] text-white/30 font-black uppercase tracking-widest">{order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Recently'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black text-white">₹{order.vendorAmount}</p>
+                      <span className={cn(
+                        "text-[10px] uppercase font-black tracking-widest",
+                        order.status === 'picked_up' ? "text-emerald-500" : "text-klu-red"
+                      )}>{order.status}</span>
                     </div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'merchant_profile' && (
+            <motion.div 
+              key="merchant_profile"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <button onClick={() => setView('merchant')} className="flex items-center gap-2 text-white/40 font-medium">
+                <ArrowLeft className="w-5 h-5" /> Back to Dashboard
+              </button>
+              <h2 className="text-display text-3xl font-black">Store Profile</h2>
+              <GlassCard className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
+                    <img src={`https://picsum.photos/seed/${profile?.uid}/200`} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-display font-black text-lg">{profile?.displayName}</h3>
+                    <p className="text-sm text-white/40 font-medium">Merchant Account</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <p className="text-[10px] text-white/30 uppercase font-black mb-1">Store Name</p>
+                    <p className="font-bold">Rice & Spice (Sample)</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <p className="text-[10px] text-white/30 uppercase font-black mb-1">UPI ID</p>
+                    <p className="font-bold">merchant@upi</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <p className="text-[10px] text-white/30 uppercase font-black mb-1">Timings</p>
+                    <p className="font-bold">8:00 AM - 9:00 PM</p>
+                  </div>
+                </div>
+                <ClayButton className="w-full">Update Store Info</ClayButton>
+              </GlassCard>
+            </motion.div>
+          )}
+
+          {view === 'admin' && (
+            <motion.div 
+              key="admin"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-display text-3xl font-black">Admin Analytics</h2>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <GlassCard className="p-4">
+                  <BarChart3 className="w-6 h-6 text-klu-red mb-2" />
+                  <p className="text-[10px] text-white/30 font-black uppercase">Total Revenue</p>
+                  <p className="text-xl font-black">₹{allOrders.reduce((acc, o) => acc + o.totalAmount, 0)}</p>
+                </GlassCard>
+                <GlassCard className="p-4">
+                  <TrendingUp className="w-6 h-6 text-emerald-500 mb-2" />
+                  <p className="text-[10px] text-white/30 font-black uppercase">Platform Fee</p>
+                  <p className="text-xl font-black">₹{allOrders.reduce((acc, o) => acc + o.convenienceFee, 0)}</p>
+                </GlassCard>
+              </div>
+
+              <GlassCard>
+                <h3 className="text-display font-black mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-klu-red" /> Block Analytics
+                </h3>
+                <div className="space-y-3">
+                  {['CSE', 'EEE', 'MECH', 'CIVIL'].map(block => {
+                    const count = allOrders.filter(o => o.block === block).length;
+                    const total = allOrders.length || 1;
+                    const percentage = (count / total) * 100;
+                    return (
+                      <div key={block} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-black uppercase text-white/40">
+                          <span>{block} Block</span>
+                          <span>{count} Orders</span>
+                        </div>
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            className="h-full bg-klu-red"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassCard>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold">Merchant Management</h3>
+                <div className="space-y-2">
+                  {outlets.map(outlet => (
+                    <div key={outlet.id} className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden">
+                          <img src={outlet.imageUrl} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm">{outlet.name}</h4>
+                          <p className="text-[10px] text-slate-400">{outlet.blockName} Block</p>
+                        </div>
+                      </div>
+                      <button className="text-blue-600 text-xs font-bold">Manage</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'merchant_menu' && (
+            <motion.div 
+              key="merchant_menu"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Menu Manager</h2>
+                <ClayButton className="flex items-center gap-2 px-4 py-2 text-xs">
+                  <Plus className="w-4 h-4" /> Add Item
+                </ClayButton>
+              </div>
+
+              <div className="grid gap-4">
+                {merchantMenu.map(item => (
+                  <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-slate-100 overflow-hidden">
+                      <img src={item.imageUrl} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold">{item.name}</h4>
+                      <p className="text-xs text-slate-500">₹{item.price} • {item.category}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={async () => {
+                          const merchantOutlet = outlets.find(o => o.merchantId === user?.uid);
+                          if (!merchantOutlet) return;
+                          try {
+                            await updateDoc(doc(db, 'outlets', merchantOutlet.id, 'menu', item.id), {
+                              isAvailable: !item.isAvailable
+                            });
+                          } catch (error) {
+                            handleFirestoreError(error, OperationType.UPDATE, `outlets/${merchantOutlet.id}/menu/${item.id}`, setAppError);
+                          }
+                        }}
+                        className={cn(
+                          "w-10 h-5 rounded-full transition-colors relative",
+                          item.isAvailable ? "bg-emerald-500" : "bg-slate-200"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all",
+                          item.isAvailable ? "right-0.5" : "left-0.5"
+                        )} />
+                      </button>
+                      <button className="p-2 text-slate-400 hover:text-blue-600">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'support' && (
+            <motion.div 
+              key="support"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-2xl font-bold">Help Center</h2>
+              <GlassCard className="space-y-4">
+                <h3 className="font-bold">Report an Issue</h3>
+                <div className="space-y-3">
+                  <input 
+                    type="text" 
+                    placeholder="Subject (e.g. Payment Failed)" 
+                    className="w-full p-4 bg-white rounded-2xl shadow-sm border-none"
+                    value={supportSubject}
+                    onChange={(e) => setSupportSubject(e.target.value)}
+                  />
+                  <textarea 
+                    placeholder="Describe your problem..." 
+                    className="w-full p-4 bg-white rounded-2xl shadow-sm border-none h-32"
+                    value={supportMessage}
+                    onChange={(e) => setSupportMessage(e.target.value)}
+                  />
+                  <ClayButton 
+                    className="w-full"
+                    onClick={submitTicket}
+                    disabled={isSubmittingTicket || !supportSubject || !supportMessage}
+                  >
+                    {isSubmittingTicket ? 'Submitting...' : 'Submit Ticket'}
+                  </ClayButton>
+                </div>
+              </GlassCard>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold">Your Tickets</h3>
+                {supportTickets.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">No tickets found.</p>
+                ) : (
+                  supportTickets.map(ticket => (
+                    <div key={ticket.id} className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
+                      <div>
+                        <h4 className="font-bold text-sm">{ticket.subject}</h4>
+                        <p className="text-[10px] text-slate-400">{ticket.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : 'Just now'}</p>
+                      </div>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                        ticket.status === 'open' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-600"
+                      )}>
+                        {ticket.status}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           )}
@@ -1281,33 +1702,33 @@ export default function App() {
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {deleteConfirmId && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-crimson-dark/80 backdrop-blur-md">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl text-center"
+              className="glass-frosted rounded-[40px] p-8 max-w-sm w-full shadow-2xl text-center border border-white/10"
             >
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-klu-red/20 text-klu-red rounded-full flex items-center justify-center mx-auto mb-4 border border-klu-red/30">
                 <Trash2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold mb-2">Delete Order?</h3>
-              <p className="text-slate-500 mb-6 text-sm">
+              <h3 className="text-display text-xl font-black mb-2">Delete Order?</h3>
+              <p className="text-white/40 mb-6 text-sm font-medium">
                 This action cannot be undone. Are you sure you want to remove this order?
               </p>
               <div className="flex gap-3">
                 <button 
                   onClick={() => setDeleteConfirmId(null)}
-                  className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-colors"
+                  className="flex-1 py-4 bg-white/5 text-white/60 font-bold rounded-2xl hover:bg-white/10 transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <ClayButton 
                   onClick={() => deleteOrder(deleteConfirmId)}
-                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-200 hover:bg-red-700 transition-colors"
+                  className="flex-1"
                 >
                   Delete
-                </button>
+                </ClayButton>
               </div>
             </motion.div>
           </div>
@@ -1315,41 +1736,71 @@ export default function App() {
       </AnimatePresence>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-6 left-6 right-6 h-20 glass rounded-full flex items-center justify-around px-4 shadow-2xl z-50">
+      <nav className="fixed bottom-6 left-6 right-6 h-20 glass-frosted rounded-full flex items-center justify-around px-4 shadow-2xl z-50 border border-white/10">
         <button 
           onClick={() => setView('home')} 
-          className={cn("p-3 rounded-full transition-all", view === 'home' ? "liquid-glass-blue shadow-lg scale-110" : "text-slate-400")}
+          className={cn("p-3 rounded-full transition-all", view === 'home' ? "clay-red shadow-lg scale-110" : "text-white/30")}
         >
           <Store className="w-6 h-6" />
         </button>
-        <button 
-          onClick={() => setView('orders')} 
-          className={cn("p-3 rounded-full transition-all", view === 'orders' ? "liquid-glass-blue shadow-lg scale-110" : "text-slate-400")}
-        >
-          <Clock className="w-6 h-6" />
-        </button>
-        <button 
-          onClick={() => setView('cart')} 
-          className={cn("p-3 rounded-full transition-all relative", view === 'cart' ? "liquid-glass-blue shadow-lg scale-110" : "text-slate-400")}
-        >
-          <ShoppingCart className="w-6 h-6" />
-          {cart.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-              {cart.length}
-            </span>
-          )}
-        </button>
+
+        {profile?.role === 'student' && (
+          <>
+            <button 
+              onClick={() => setView('orders')} 
+              className={cn("p-3 rounded-full transition-all", view === 'orders' ? "clay-red shadow-lg scale-110" : "text-white/30")}
+            >
+              <Clock className="w-6 h-6" />
+            </button>
+            <button 
+              onClick={() => setView('cart')} 
+              className={cn("p-3 rounded-full transition-all relative", view === 'cart' ? "clay-red shadow-lg scale-110" : "text-white/30")}
+            >
+              <ShoppingCart className="w-6 h-6" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-white text-klu-red text-[10px] font-black rounded-full flex items-center justify-center border-2 border-klu-red">
+                  {cart.length}
+                </span>
+              )}
+            </button>
+            <button 
+              onClick={() => setView('support')} 
+              className={cn("p-3 rounded-full transition-all", view === 'support' ? "clay-red shadow-lg scale-110" : "text-white/30")}
+            >
+              <HelpCircle className="w-6 h-6" />
+            </button>
+          </>
+        )}
+
         {profile?.role === 'merchant' && (
+          <>
+            <button 
+              onClick={() => setView('merchant')} 
+              className={cn("p-3 rounded-full transition-all", ['merchant', 'merchant_archive', 'merchant_profile'].includes(view) ? "clay-red shadow-lg scale-110" : "text-white/30")}
+            >
+              <LayoutDashboard className="w-6 h-6" />
+            </button>
+            <button 
+              onClick={() => setView('merchant_menu')} 
+              className={cn("p-3 rounded-full transition-all", view === 'merchant_menu' ? "clay-red shadow-lg scale-110" : "text-white/30")}
+            >
+              <UtensilsCrossed className="w-6 h-6" />
+            </button>
+          </>
+        )}
+
+        {profile?.role === 'admin' && (
           <button 
-            onClick={() => setView('merchant')} 
-            className={cn("p-3 rounded-full transition-all", view === 'merchant' ? "liquid-glass-blue shadow-lg scale-110" : "text-slate-400")}
+            onClick={() => setView('admin')} 
+            className={cn("p-3 rounded-full transition-all", view === 'admin' ? "clay-red shadow-lg scale-110" : "text-white/30")}
           >
-            <ChefHat className="w-6 h-6" />
+            <BarChart3 className="w-6 h-6" />
           </button>
         )}
+
         <button 
           onClick={() => setView('profile')} 
-          className={cn("p-3 rounded-full transition-all", view === 'profile' ? "liquid-glass-blue shadow-lg scale-110" : "text-slate-400")}
+          className={cn("p-3 rounded-full transition-all", view === 'profile' ? "clay-red shadow-lg scale-110" : "text-white/30")}
         >
           <UserIcon className="w-6 h-6" />
         </button>

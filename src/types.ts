@@ -3,6 +3,12 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: 'student' | 'merchant' | 'admin';
+  studentId?: string;
+  kCoins?: number;
+  streak?: number;
+  lastOrderDate?: any;
+  block?: string;
+  savedPaymentMethods?: string[];
 }
 
 export interface Outlet {
@@ -15,6 +21,9 @@ export interface Outlet {
   blockName: string;
   category: string;
   upiId: string;
+  timings?: string;
+  rating?: number;
+  totalOrders?: number;
 }
 
 export interface MenuItem {
@@ -48,5 +57,18 @@ export interface Order {
   paymentStatus: 'unpaid' | 'paid' | 'failed';
   paymentId?: string;
   token: string;
+  createdAt: any;
+  rating?: number;
+  review?: string;
+  block?: string; // The block of the student who ordered
+}
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  orderId?: string;
+  subject: string;
+  message: string;
+  status: 'open' | 'resolved' | 'closed';
   createdAt: any;
 }

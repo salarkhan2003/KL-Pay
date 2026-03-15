@@ -56,6 +56,17 @@ service cloud.firestore {
     //   - token: string (optional) - Pickup token
     //   - createdAt: timestamp (required) - When the order was placed
     //
+    // Collection: support
+    // Document ID: {ticketId}
+    // Fields:
+    //   - id: string (required) - Ticket ID
+    //   - userId: string (required) - UID of the user who created the ticket
+    //   - orderId: string (optional) - Related order ID
+    //   - subject: string (required) - Ticket subject
+    //   - message: string (required) - Ticket message
+    //   - status: string (required) - One of ['open', 'resolved', 'closed']
+    //   - createdAt: timestamp (required) - When the ticket was created
+    //
     // ===============================================================
 
     // Helper Functions
@@ -69,9 +80,9 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && (
+        (request.auth.token.email == "salarkhanpatan7861@gmail.com" && request.auth.token.email_verified == true) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-        (request.auth.token.email == "salarkhanpatan7861@gmail.com" && request.auth.token.email_verified == true)
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
     
@@ -117,6 +128,12 @@ service cloud.firestore {
       return hasOnlyAllowedFields(['studentId', 'outletId', 'items', 'totalAmount', 'convenienceFee', 'vendorAmount', 'status', 'paymentStatus', 'paymentId', 'token', 'createdAt']) &&
              data.studentId is string && data.outletId is string && data.items is list && data.totalAmount is number &&
              data.status in ['pending', 'preparing', 'ready', 'picked_up', 'cancelled'];
+    }
+
+    function isValidSupportTicket(data) {
+      return hasOnlyAllowedFields(['id', 'userId', 'orderId', 'subject', 'message', 'status', 'createdAt']) &&
+             data.id is string && data.userId is string && data.subject is string && data.message is string &&
+             data.status in ['open', 'resolved', 'closed'];
     }
 
     // User Rules
@@ -167,6 +184,13 @@ service cloud.firestore {
          resource.data.status in ['pending', 'picked_up', 'cancelled']) ||
         isAdmin()
       );
+    }
+
+    // Support Rules
+    match /support/{ticketId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidSupportTicket(request.resource.data);
+      allow update: if isAdmin();
     }
   }
 }

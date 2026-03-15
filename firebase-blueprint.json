@@ -62,6 +62,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "studentId", "outletId", "items", "totalAmount", "status"]
+    },
+    "supportTicket": {
+      "title": "Support Ticket",
+      "description": "A customer support request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "resolved", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "subject", "message", "status"]
     }
   },
   "firestore": {
@@ -80,6 +95,10 @@
     "/orders/{orderId}": {
       "schema": "order",
       "description": "Customer orders"
+    },
+    "/support/{ticketId}": {
+      "schema": "supportTicket",
+      "description": "Customer support tickets"
     }
   }
 }
