@@ -1,0 +1,13 @@
+{
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/health",                   "destination": "/api/health" },
+    { "source": "/api/payments/create-session",  "destination": "/api/payments/create-session" },
+    { "source": "/api/payments/direct-pay",      "destination": "/api/payments/direct-pay" },
+    { "source": "/api/payments/webhook",         "destination": "/api/payments/webhook" },
+    { "source": "/(.*)",                         "destination": "/index.html" }
+  ]
+}

@@ -659,12 +659,79 @@ export default function App() {
       || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
     if (!merchantOutlet) return;
     try {
-      await updateDoc(doc(db, 'outlets', merchantOutlet.id, 'menu', itemId), {
-        isAvailable
-      });
+      await updateDoc(doc(db, 'outlets', merchantOutlet.id, 'menu', itemId), { isAvailable });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `outlets/${merchantOutlet.id}/menu/${itemId}`, setAppError);
+      console.warn('toggleMenuItemAvailability:', error);
     }
+  };
+
+  // ── Add / Edit / Delete menu item (merchant + admin) ──────────────────────
+  const getMerchantOutlet = (outletIdOverride?: string) =>
+    outletIdOverride
+      ? outlets.find(o => o.id === outletIdOverride)
+      : outlets.find(o => o.merchantId === user?.uid)
+          || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
+
+  const saveMenuItem = async (
+    item: Partial<MenuItem> & { name: string; price: number; category: string },
+    outletIdOverride?: string
+  ) => {
+    const outlet = getMerchantOutlet(outletIdOverride);
+    if (!outlet) { showToast('No outlet assigned', 'error'); return; }
+    const itemId = item.id || `${outlet.id}_${item.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
+    const data: MenuItem = {
+      id: itemId,
+      outletId: outlet.id,
+      name: item.name,
+      description: item.description || '',
+      price: item.price,
+      imageUrl: item.imageUrl || `https://picsum.photos/seed/${itemId}/100`,
+      category: item.category,
+      isAvailable: item.isAvailable ?? true,
+      prepTime: item.prepTime || '10m',
+    };
+    try {
+      await setDoc(doc(db, 'outlets', outlet.id, 'menu', itemId), data);
+      showToast(item.id ? 'Item updated' : 'Item added');
+    } catch (e) { console.warn('saveMenuItem:', e); showToast('Failed to save item', 'error'); }
+  };
+
+  const deleteMenuItem = async (itemId: string, outletIdOverride?: string) => {
+    const outlet = getMerchantOutlet(outletIdOverride);
+    if (!outlet) return;
+    try {
+      await deleteDoc(doc(db, 'outlets', outlet.id, 'menu', itemId));
+      showToast('Item deleted');
+    } catch (e) { console.warn('deleteMenuItem:', e); }
+  };
+
+  // ── Add / Edit / Delete outlet (admin only) ───────────────────────────────
+  const saveOutlet = async (data: Partial<Outlet> & { name: string }) => {
+    const id = data.id || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
+    const outlet: Outlet = {
+      id,
+      name: data.name,
+      description: data.description || '',
+      imageUrl: data.imageUrl || `https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400`,
+      isOpen: data.isOpen ?? true,
+      merchantId: data.merchantId || user?.uid || '',
+      blockName: data.blockName || 'CSE',
+      category: data.category || 'Meals',
+      upiId: data.upiId || '',
+      timings: data.timings || '8am – 9pm',
+      rating: data.rating || 4.0,
+    };
+    try {
+      await setDoc(doc(db, 'outlets', id), outlet);
+      showToast(data.id ? 'Outlet updated' : 'Outlet added');
+    } catch (e) { console.warn('saveOutlet:', e); showToast('Failed to save outlet', 'error'); }
+  };
+
+  const deleteOutlet = async (outletId: string) => {
+    try {
+      await deleteDoc(doc(db, 'outlets', outletId));
+      showToast('Outlet deleted');
+    } catch (e) { console.warn('deleteOutlet:', e); }
   };
 
   const submitSupportTicket = async (subject: string, message: string) => {
@@ -945,6 +1012,8 @@ export default function App() {
             <MerchantMenuView 
               menu={merchantMenu}
               onToggleAvailability={toggleMenuItemAvailability}
+              onSaveItem={(item) => saveMenuItem(item)}
+              onDeleteItem={(id) => deleteMenuItem(id)}
             />
           )}
 
@@ -980,6 +1049,10 @@ export default function App() {
               outlets={outlets}
               onSeedData={seedCampusData}
               isSeeding={isSeeding}
+              onSaveOutlet={saveOutlet}
+              onDeleteOutlet={deleteOutlet}
+              onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)}
+              onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)}
             />
           )}
         </AnimatePresence>
