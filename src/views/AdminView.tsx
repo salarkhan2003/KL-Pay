@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { BarChart3, TrendingUp, Users, Store, ChevronRight } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';

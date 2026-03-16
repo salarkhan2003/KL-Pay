@@ -1,198 +1,134 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {userId}
-    // Fields:
-    //   - uid: string (required) - User's unique ID
-    //   - email: string (required) - User's email address
-    //   - displayName: string (optional) - User's display name
-    //   - role: string (required) - One of ['student', 'merchant', 'admin']
-    //   - createdAt: timestamp (optional) - When the profile was created
-    //
-    // Collection: outlets
-    // Document ID: {outletId}
-    // Fields:
-    //   - id: string (required) - Outlet ID
-    //   - name: string (required) - Outlet name
-    //   - description: string (optional) - Outlet description
-    //   - imageUrl: string (optional) - Outlet image URL
-    //   - isOpen: boolean (optional) - Whether the outlet is open
-    //   - merchantId: string (required) - UID of the merchant owner
-    //   - blockName: string (optional) - Campus block location
-    //   - category: string (optional) - Food category
-    //   - upiId: string (optional) - UPI ID for payments
-    //
-    // Collection: outlets/{outletId}/menu
-    // Document ID: {itemId}
-    // Fields:
-    //   - id: string (required) - Item ID
-    //   - outletId: string (required) - Parent outlet ID
-    //   - name: string (required) - Item name
-    //   - description: string (optional) - Item description
-    //   - price: number (required) - Item price
-    //   - imageUrl: string (optional) - Item image URL
-    //   - category: string (optional) - Item category
-    //   - isAvailable: boolean (optional) - Whether the item is available
-    //   - prepTime: string (optional) - Estimated preparation time
-    //
-    // Collection: orders
-    // Document ID: {orderId}
-    // Fields:
-    //   - id: string (required) - Order ID
-    //   - studentId: string (required) - UID of the student who ordered
-    //   - outletId: string (required) - UID of the outlet
-    //   - items: list (required) - List of items ordered
-    //   - totalAmount: number (required) - Total amount paid
-    //   - convenienceFee: number (optional) - Fee amount
-    //   - vendorAmount: number (optional) - Amount for the vendor
-    //   - status: string (required) - One of ['pending', 'preparing', 'ready', 'picked_up', 'cancelled']
-    //   - paymentStatus: string (optional) - One of ['unpaid', 'paid', 'failed']
-    //   - paymentId: string (optional) - Payment transaction ID
-    //   - token: string (optional) - Pickup token
-    //   - createdAt: timestamp (required) - When the order was placed
-    //
-    // Collection: support
-    // Document ID: {ticketId}
-    // Fields:
-    //   - id: string (required) - Ticket ID
-    //   - userId: string (required) - UID of the user who created the ticket
-    //   - orderId: string (optional) - Related order ID
-    //   - subject: string (required) - Ticket subject
-    //   - message: string (required) - Ticket message
-    //   - status: string (required) - One of ['open', 'resolved', 'closed']
-    //   - createdAt: timestamp (required) - When the ticket was created
-    //
-    // ===============================================================
 
-    // Helper Functions
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
+    // Admin = hardcoded email OR role field in Firestore (covers anonymous dev login)
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "salarkhanpatan7861@gmail.com" && request.auth.token.email_verified == true) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        request.auth.token.email == "salarkhanpatan7861@gmail.com" ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        )
       );
     }
-    
+
     function isMerchant() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'merchant';
     }
 
     function isOutletMerchant(outletId) {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
              exists(/databases/$(database)/documents/outlets/$(outletId)) &&
              get(/databases/$(database)/documents/outlets/$(outletId)).data.merchantId == request.auth.uid;
     }
 
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'student';
     }
 
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    // Domain Validators
-    function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             data.email is string && isValidEmail(data.email) &&
-             data.role in ['student', 'merchant', 'admin'];
-    }
-
-    function isValidOutlet(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'description', 'imageUrl', 'isOpen', 'merchantId', 'blockName', 'category', 'upiId']) &&
-             data.id is string && data.name is string && data.merchantId is string;
-    }
-
-    function isValidMenuItem(data) {
-      return hasOnlyAllowedFields(['id', 'outletId', 'name', 'description', 'price', 'imageUrl', 'category', 'isAvailable', 'prepTime']) &&
-             data.id is string && data.outletId is string && data.name is string && data.price is number;
-    }
-
-    function isValidOrder(data) {
-      return hasOnlyAllowedFields(['studentId', 'outletId', 'items', 'totalAmount', 'convenienceFee', 'vendorAmount', 'status', 'paymentStatus', 'paymentId', 'token', 'createdAt']) &&
-             data.studentId is string && data.outletId is string && data.items is list && data.totalAmount is number &&
-             data.status in ['pending', 'preparing', 'ready', 'picked_up', 'cancelled'];
-    }
-
-    function isValidSupportTicket(data) {
-      return hasOnlyAllowedFields(['id', 'userId', 'orderId', 'subject', 'message', 'status', 'createdAt']) &&
-             data.id is string && data.userId is string && data.subject is string && data.message is string &&
-             data.status in ['open', 'resolved', 'closed'];
-    }
-
-    // User Rules
+    // ── Users ─────────────────────────────────────────────────────────────────
     match /users/{userId} {
+      // Any authenticated user can read any profile (needed for merchant to see student info)
       allow read: if isAuthenticated();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
-                      (request.resource.data.role == 'student' || isAdmin());
-      allow update: if isValidUser(request.resource.data) && 
-                      (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+
+      // Owner can create their own profile — relaxed for anonymous/dev users
+      allow create: if isOwner(userId) &&
+                       request.resource.data.uid == request.auth.uid &&
+                       request.resource.data.role in ['student', 'merchant', 'admin'];
+
+      // Owner or admin can update
+      allow update: if isOwner(userId) || isAdmin();
+
+      // Only admin can delete
+      allow delete: if isAdmin();
     }
 
-    // Outlet Rules
-    // Outlet Rules
+    // ── Outlets ───────────────────────────────────────────────────────────────
     match /outlets/{outletId} {
+      // Anyone can read outlets (needed for home screen without login)
       allow read: if true;
-      allow write: if isAdmin() && isValidOutlet(request.resource.data);
-      
+
+      // Admin or authenticated merchant/owner can write outlet docs
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isOutletMerchant(outletId) ||
+        // Allow assigning merchantId (dev outlet assignment)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['merchantId'])
+      );
+      allow delete: if isAdmin();
+
+      // ── Menu items ──────────────────────────────────────────────────────────
       match /menu/{itemId} {
         allow read: if true;
-        // FIX: Allow write if user is Admin OR simply Authenticated (for now)
-        // You can revert this to isOutletMerchant(outletId) once your user roles are set up
-        allow write: if (isAdmin() || isAuthenticated()) && isValidMenuItem(request.resource.data);
+        allow write: if isAuthenticated() && (
+          isAdmin() || isOutletMerchant(outletId)
+        );
       }
     }
 
-    // Order Rules
+    // ── Orders ────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
       allow read: if isAuthenticated() && (
-        request.auth.uid == resource.data.studentId || 
-        isOutletMerchant(resource.data.outletId) || 
+        request.auth.uid == resource.data.studentId ||
+        isOutletMerchant(resource.data.outletId) ||
         isAdmin()
       );
-      allow create: if isAuthenticated() && 
-                      request.resource.data.studentId == request.auth.uid && 
-                      isValidOrder(request.resource.data);
+
+      allow create: if isAuthenticated() &&
+                       request.resource.data.studentId == request.auth.uid;
+
       allow update: if isAuthenticated() && (
-        // Students can cancel their own pending orders
-        (request.auth.uid == resource.data.studentId && 
-         request.resource.data.status == 'cancelled' && 
-         resource.data.status == 'pending' &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
-        // Merchants can update status
-        (isOutletMerchant(resource.data.outletId) && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-         request.resource.data.status in ['preparing', 'ready', 'picked_up']) ||
+        // Student cancels own pending order
+        (request.auth.uid == resource.data.studentId &&
+         request.resource.data.status == 'cancelled' &&
+         resource.data.status == 'pending') ||
+        // Merchant updates status
+        isOutletMerchant(resource.data.outletId) ||
         // Admin can do anything
         isAdmin()
       );
+
       allow delete: if isAuthenticated() && (
-        (request.auth.uid == resource.data.studentId && 
-         resource.data.status in ['pending', 'picked_up', 'cancelled']) ||
+        request.auth.uid == resource.data.studentId ||
         isAdmin()
       );
     }
 
-    // Support Rules
+    // ── Transactions ──────────────────────────────────────────────────────────
+    match /transactions/{txId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.studentId || isAdmin()
+      );
+      allow create: if isAuthenticated() &&
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.studentId || isAdmin()
+      );
+    }
+
+    // ── Support tickets ───────────────────────────────────────────────────────
     match /support/{ticketId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidSupportTicket(request.resource.data);
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
     }
   }

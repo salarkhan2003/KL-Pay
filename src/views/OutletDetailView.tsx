@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { ArrowLeft, Star, MapPin, Plus } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { Outlet, MenuItem } from '../types';

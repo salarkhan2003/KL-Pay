@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { ShoppingCart, Minus, Plus, Trash2 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
@@ -14,18 +14,18 @@ interface CartViewProps {
 
 export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRemove, onCheckout }) => {
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const fee = 10;
+  const fee = 1;
   const total = subtotal + fee;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className="space-y-8"
     >
       <h2 className="text-display text-4xl font-black">Your Cart</h2>
-      
+
       {cart.length === 0 ? (
         <div className="text-center py-20 space-y-4">
           <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
@@ -37,29 +37,38 @@ export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRe
         <>
           <div className="space-y-4">
             {cart.map(item => (
-              <div key={item.id} className="flex gap-4 items-center">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/5 border border-white/10">
-                  <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div key={item.id} className="flex gap-4 items-center glass-frosted rounded-[24px] p-4 border border-white/10">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/5 border border-white/10 flex-shrink-0">
+                  <img src={item.imageUrl || `https://picsum.photos/seed/${item.id}/100`} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={item.name} />
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-black">{item.name}</h4>
-                  <p className="text-klu-red font-black">₹{item.price}</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-black truncate">{item.name}</h4>
+                  <p className="text-klu-red font-black text-sm">₹{item.price}</p>
                 </div>
-                <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-1 border border-white/10">
-                  <button 
-                    onClick={() => onUpdateQuantity(item.id, -1)}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors"
+                <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1 border border-white/10">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onUpdateQuantity(item.id, -1); }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all text-white"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="font-black text-sm w-4 text-center">{item.quantity}</span>
-                  <button 
-                    onClick={() => onUpdateQuantity(item.id, 1)}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors"
+                  <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onUpdateQuantity(item.id, 1); }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all text-white"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 active:scale-90 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>

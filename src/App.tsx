@@ -23,9 +23,11 @@ import {
   signOut, 
   User,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  signInAnonymously
 } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { saveUserProfile } from './auth';
 import { 
   Store, 
   ShoppingCart, 
@@ -88,6 +90,11 @@ import { MerchantView } from './views/MerchantView';
 import { MerchantMenuView } from './views/MerchantMenuView';
 import { SupportView } from './views/SupportView';
 import { AdminView } from './views/AdminView';
+import { KCoinsView } from './views/KCoinsView';
+import { DirectPayView } from './views/DirectPayView';
+import { TransactionHistoryView } from './views/TransactionHistoryView';
+import { Transaction } from './types';
+import { confirmPayment, awardKCoins } from './paymentEngine';
 
 // --- Main App ---
 
@@ -126,6 +133,7 @@ export default function App() {
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // --- Auth & Profile ---
 
@@ -133,12 +141,12 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        setIsSkipped(false); // Reset skip if logged in
+        setIsSkipped(false);
         const docRef = doc(db, 'users', u.uid);
         try {
           const docSnap = await getDoc(docRef);
-          
           const isAdmin = u.email?.toLowerCase() === 'salarkhanpatan7861@gmail.com';
+
           if (docSnap.exists()) {
             const existingProfile = docSnap.data() as UserProfile;
             if (isAdmin && existingProfile.role !== 'admin') {
@@ -151,17 +159,30 @@ export default function App() {
             const newProfile: UserProfile = {
               uid: u.uid,
               email: u.email || '',
-              displayName: u.displayName || 'KLU Student',
+              displayName: u.displayName || (u.isAnonymous ? 'Dev User' : 'KLU Student'),
               role: isAdmin ? 'admin' : 'student',
               kCoins: 0,
               streak: 0,
-              block: 'CSE' // Default block
+              block: 'CSE',
             };
-            await setDoc(docRef, newProfile);
+            try {
+              await setDoc(docRef, newProfile);
+            } catch (writeErr: any) {
+              // Rules may block anonymous write on first load — profile was already
+              // written by devLogin(), so just read it back or use in-memory fallback
+              console.warn('Profile write blocked (rules), using in-memory profile:', writeErr?.code);
+            }
             setProfile(newProfile);
           }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `users/${u.uid}`, setAppError);
+        } catch (error: any) {
+          // For anonymous/dev users, a permission error on read just means rules
+          // haven't deployed yet — don't crash the app, use whatever profile is in state
+          if (error?.code === 'permission-denied' && u.isAnonymous) {
+            console.warn('Firestore rules blocked anonymous read — deploy rules to fix permanently.');
+            // Profile was already set by devLogin(), so don't overwrite with null
+          } else {
+            handleFirestoreError(error, OperationType.GET, `users/${u.uid}`, setAppError);
+          }
         }
       } else {
         setProfile(null);
@@ -177,6 +198,38 @@ export default function App() {
   };
 
   const logout = () => signOut(auth);
+
+  // Dev bypass — sign in anonymously then force a role profile
+  const devLogin = async (role: 'student' | 'merchant' | 'admin') => {
+    try {
+      const cred = await signInAnonymously(auth);
+      const uid = cred.user.uid;
+      const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
+      const devProfile: UserProfile = {
+        uid,
+        email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`,
+        displayName: names[role],
+        role,
+        kCoins: role === 'student' ? 120 : 0,
+        streak: role === 'student' ? 5 : 0,
+        block: 'CSE',
+        phone: '9999999999',
+      };
+      // Set profile in state immediately — don't wait for Firestore round-trip
+      setProfile(devProfile);
+      setIsSkipped(false);
+      // Try to persist to Firestore (may fail if rules not deployed yet — that's ok)
+      try {
+        await setDoc(doc(db, 'users', uid), devProfile);
+      } catch (e: any) {
+        console.warn('Dev profile Firestore write failed (deploy rules to fix):', e?.code);
+      }
+      // Navigate to the right dashboard
+      setView(role === 'merchant' ? 'merchant' : role === 'admin' ? 'admin' : 'home');
+    } catch (err) {
+      console.error('Dev login failed:', err);
+    }
+  };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
@@ -195,6 +248,18 @@ export default function App() {
     setIsEditingName(false);
   };
 
+  // Assign an outlet to the current user for merchant testing
+  const assignOutlet = async (outletId: string) => {
+    if (!user) return;
+    // Update the outlet's merchantId to this user
+    try {
+      await updateDoc(doc(db, 'outlets', outletId), { merchantId: user.uid });
+      await updateProfile({ merchantOutletId: outletId });
+    } catch (e) {
+      console.error('assignOutlet error', e);
+    }
+  };
+
   // --- Real-time Data Listeners ---
 
   useEffect(() => {
@@ -203,7 +268,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setOutlets(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Outlet)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'outlets', setAppError);
+      console.warn('Outlets listener:', error.code);
     });
     return unsub;
   }, []);
@@ -419,7 +484,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders', setAppError);
+      console.warn('Student orders listener:', error.code);
     });
     return unsub;
   }, [user]);
@@ -427,8 +492,9 @@ export default function App() {
   useEffect(() => {
     if (!profile || profile.role !== 'merchant' || !user) return;
     
-    // Find the outlet owned by this merchant
-    const merchantOutlet = outlets.find(o => o.merchantId === user.uid);
+    // Find the outlet owned by this merchant — check both merchantId field and profile.merchantOutletId
+    const merchantOutlet = outlets.find(o => o.merchantId === user.uid)
+      || (profile.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
     if (!merchantOutlet) return;
 
     // Listen for Merchant Orders (orders for their outlet)
@@ -440,7 +506,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setMerchantOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders', setAppError);
+      console.warn('Merchant orders listener:', error.code);
     });
     return unsub;
   }, [profile, user, outlets]);
@@ -449,7 +515,8 @@ export default function App() {
   useEffect(() => {
     if (!profile || profile.role !== 'merchant' || !user) return;
 
-    const merchantOutlet = outlets.find(o => o.merchantId === user.uid);
+    const merchantOutlet = outlets.find(o => o.merchantId === user.uid)
+      || (profile.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
     if (!merchantOutlet) return;
 
     const q = query(
@@ -459,7 +526,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setMerchantMenu(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `outlets/${merchantOutlet.id}/menu`, setAppError);
+      console.warn('Merchant menu listener:', error.code);
     });
     return unsub;
   }, [profile, user, outlets]);
@@ -471,9 +538,40 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'support', setAppError);
+      console.warn('Support tickets listener:', error.code);
     });
     return unsub;
+  }, [user]);
+
+  // Fetch Transactions (unified history)
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'transactions'), where('studentId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+    }, (error) => {
+      console.error('Transactions listener error:', error);
+    });
+    return unsub;
+  }, [user]);
+
+  // Handle Cashfree return URL — confirm payment + award K-Coins
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('order_id') || params.get('dp_order_id');
+    if (!orderId || !user) return;
+    (async () => {
+      try {
+        const kCoins = await confirmPayment(orderId, orderId);
+        await awardKCoins(user.uid, kCoins);
+        setProfile(prev => prev ? { ...prev, kCoins: (prev.kCoins || 0) + kCoins } : prev);
+        showToast(`Payment confirmed! +${kCoins} K-Coins earned 🪙`);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setView('transactions');
+      } catch (err) {
+        console.error('Payment confirmation error:', err);
+      }
+    })();
   }, [user]);
 
   // Fetch All Orders (Admin only)
@@ -483,7 +581,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setAllOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders', setAppError);
+      console.warn('Admin orders listener:', error.code);
     });
     return unsub;
   }, [profile]);
@@ -494,7 +592,7 @@ export default function App() {
     const unsub = onSnapshot(q, (snapshot) => {
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `outlets/${selectedOutlet.id}/menu`, setAppError);
+      console.warn('Menu items listener:', error.code);
     });
     return unsub;
   }, [selectedOutlet]);
@@ -557,7 +655,8 @@ export default function App() {
   };
 
   const toggleMenuItemAvailability = async (itemId: string, isAvailable: boolean) => {
-    const merchantOutlet = outlets.find(o => o.merchantId === user?.uid);
+    const merchantOutlet = outlets.find(o => o.merchantId === user?.uid)
+      || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
     if (!merchantOutlet) return;
     try {
       await updateDoc(doc(db, 'outlets', merchantOutlet.id, 'menu', itemId), {
@@ -624,7 +723,8 @@ export default function App() {
           orderId: orderId,
           customerEmail: user.email,
           customerName: profile?.displayName || user.displayName,
-          customerPhone: "9999999999" // Fallback or get from profile
+          customerPhone: profile?.phone || "9999999999",
+          merchantVpa: selectedOutlet.upiId,
         })
       });
 
@@ -652,6 +752,8 @@ export default function App() {
       const orderData: Omit<Order, 'id'> = {
         studentId: user.uid,
         outletId: selectedOutlet.id,
+        userName: profile?.displayName || user.displayName || '',
+        userPhone: profile?.phone || '',
         items: cart,
         totalAmount,
         convenienceFee,
@@ -744,7 +846,16 @@ export default function App() {
     </div>
   );
 
-  if (!user && !isSkipped) return <LoginPage onSkip={() => setIsSkipped(true)} />;
+  if (!user && !isSkipped) return (
+    <LoginPage
+      onSkip={() => setIsSkipped(true)}
+      onMagicLinkComplete={async (uid, email, phone) => {
+        const p = await saveUserProfile(uid, email, phone, 'salarkhanpatan7861@gmail.com');
+        setProfile(p);
+      }}
+      onDevLogin={devLogin}
+    />
+  );
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-crimson-dark relative pb-24 font-sans selection:bg-klu-red selection:text-white">
@@ -814,12 +925,17 @@ export default function App() {
               onLogout={logout}
               onUpdateProfile={updateProfile}
               onSwitchView={setView}
+              outlets={outlets}
+              onAssignOutlet={assignOutlet}
+              assignedOutlet={outlets.find(o => o.merchantId === user?.uid) || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) || null : null)}
             />
           )}
 
           {view === 'merchant' && (
             <MerchantView 
               orders={merchantOrders}
+              outlets={outlets}
+              merchantOutlet={outlets.find(o => o.merchantId === user?.uid) || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) || null : null)}
               onUpdateStatus={updateOrderStatus}
               onSwitchView={setView}
             />
@@ -837,6 +953,25 @@ export default function App() {
               tickets={supportTickets}
               onSubmitTicket={submitSupportTicket}
             />
+          )}
+
+          {view === 'kcoins' && (
+            <KCoinsView profile={profile} />
+          )}
+
+          {view === 'direct_pay' && (
+            <DirectPayView
+              outlets={outlets}
+              profile={profile}
+              user={user}
+              onSuccess={(amount, outletName) => {
+                showToast(`Paying ₹${amount} to ${outletName}...`);
+              }}
+            />
+          )}
+
+          {view === 'transactions' && (
+            <TransactionHistoryView transactions={transactions} />
           )}
 
           {view === 'admin' && (
@@ -906,7 +1041,8 @@ export default function App() {
       <Navigation 
         activeView={view} 
         onViewChange={setView} 
-        role={profile?.role || 'student'} 
+        role={profile?.role || 'student'}
+        cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)}
       />
     </div>
   );

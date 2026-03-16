@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Plus, Settings } from 'lucide-react';
 import { ClayButton } from '../components/ClayButton';
 import { cn } from '../utils';
@@ -25,36 +25,44 @@ export const MerchantMenuView: React.FC<MerchantMenuViewProps> = ({ menu, onTogg
         </ClayButton>
       </div>
 
-      <div className="grid gap-4">
-        {menu.map(item => (
-          <div key={item.id} className="glass-frosted p-4 rounded-2xl border border-white/10 flex items-center gap-4">
-            <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-              <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+      {menu.length === 0 ? (
+        <div className="text-center py-16 glass-frosted rounded-[32px] border border-white/10">
+          <Settings className="w-10 h-10 text-white/10 mx-auto mb-3" />
+          <p className="text-white/30 font-medium text-sm">No menu items yet</p>
+          <p className="text-white/20 text-xs mt-1">Assign an outlet in Profile → Dev Tools first</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {menu.map(item => (
+            <div key={item.id} className="glass-frosted p-4 rounded-2xl border border-white/10 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold">{item.name}</h4>
+                <p className="text-xs text-white/40">₹{item.price} • {item.category}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => onToggleAvailability(item.id, !item.isAvailable)}
+                  className={cn(
+                    "w-10 h-5 rounded-full transition-colors relative",
+                    item.isAvailable ? "bg-emerald-500" : "bg-white/10"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all",
+                    item.isAvailable ? "right-0.5" : "left-0.5"
+                  )} />
+                </button>
+                <button className="p-2 text-white/20 hover:text-white">
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="flex-1">
-              <h4 className="font-bold">{item.name}</h4>
-              <p className="text-xs text-white/40">₹{item.price} • {item.category}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => onToggleAvailability(item.id, !item.isAvailable)}
-                className={cn(
-                  "w-10 h-5 rounded-full transition-colors relative",
-                  item.isAvailable ? "bg-emerald-500" : "bg-white/10"
-                )}
-              >
-                <div className={cn(
-                  "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all",
-                  item.isAvailable ? "right-0.5" : "left-0.5"
-                )} />
-              </button>
-              <button className="p-2 text-white/20 hover:text-white">
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 };

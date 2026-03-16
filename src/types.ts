@@ -8,7 +8,11 @@ export interface UserProfile {
   streak?: number;
   lastOrderDate?: any;
   block?: string;
+  phone?: string;
+  createdAt?: any;
   savedPaymentMethods?: string[];
+  photoURL?: string;
+  merchantOutletId?: string; // which outlet this user manages (dev testing)
 }
 
 export interface Outlet {
@@ -53,6 +57,8 @@ export interface Order {
   id: string;
   studentId: string;
   outletId: string;
+  userName?: string;
+  userPhone?: string;
   items: OrderItem[];
   totalAmount: number;
   convenienceFee: number;
@@ -64,7 +70,7 @@ export interface Order {
   createdAt: any;
   rating?: number;
   review?: string;
-  block?: string; // The block of the student who ordered
+  block?: string;
 }
 
 export interface SupportTicket {
@@ -75,4 +81,44 @@ export interface SupportTicket {
   message: string;
   status: 'open' | 'resolved' | 'closed';
   createdAt: any;
+}
+
+// ── Unified Transaction (Food_Order + Peer_to_Merchant_Pay) ──────────────────
+export type PaymentFlow = 'Food_Order' | 'Peer_to_Merchant_Pay';
+
+export interface Transaction {
+  id: string;                    // Cashfree order_id
+  flow: PaymentFlow;
+  studentId: string;
+  studentName: string;
+  studentPhone?: string;
+  outletId: string;
+  outletName: string;
+  merchantVpa: string;           // merchant UPI VPA
+  totalAmount: number;           // what student paid
+  platformFee: number;           // always ₹1 → admin
+  vendorAmount: number;          // totalAmount - platformFee
+  paymentStatus: 'pending' | 'paid' | 'failed';
+  cashfreeOrderId: string;
+  cashfreePaymentId?: string;
+  kCoinsAwarded: number;
+  createdAt: any;
+  // Food_Order specific
+  orderId?: string;
+  token?: string;
+  // Peer_to_Merchant_Pay specific
+  note?: string;
+}
+
+// Merchant real-time alert pushed via Firestore + Socket.io
+export interface MerchantAlert {
+  id: string;
+  outletId: string;
+  type: 'Food_Order' | 'Direct_Pay';
+  amount: number;
+  fromName: string;
+  token?: string;
+  note?: string;
+  createdAt: any;
+  read: boolean;
 }
