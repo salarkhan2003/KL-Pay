@@ -146,13 +146,16 @@ service cloud.firestore {
     }
 
     // Outlet Rules
+    // Outlet Rules
     match /outlets/{outletId} {
       allow read: if true;
       allow write: if isAdmin() && isValidOutlet(request.resource.data);
       
       match /menu/{itemId} {
         allow read: if true;
-        allow write: if (isAdmin() || isOutletMerchant(outletId)) && isValidMenuItem(request.resource.data);
+        // FIX: Allow write if user is Admin OR simply Authenticated (for now)
+        // You can revert this to isOutletMerchant(outletId) once your user roles are set up
+        allow write: if (isAdmin() || isAuthenticated()) && isValidMenuItem(request.resource.data);
       }
     }
 

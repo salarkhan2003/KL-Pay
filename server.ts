@@ -1,48 +1,53 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import cors from "cors";
-import dotenv from "dotenv";
+import { Cashfree } from "cashfree-pg";
+import dotenv from 'dotenv';
 
 dotenv.config();
+
+const cashfree: any = Cashfree;
+cashfree.XClientId = process.env.CASHFREE_APP_ID;
+cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY;
+// Use string directly if Environment enum is not available on the object
+cashfree.XEnvironment = "PRODUCTION"; 
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
   app.use(express.json());
 
-  // API Routes
-  
-  // Create Order (Cashfree Simulation)
-  app.post("/api/payments/create-order", async (req, res) => {
-    const { amount, customerId, orderId, outletId } = req.body;
-    
-    // In a real app, you'd call Cashfree API here
-    // const cashfreeResponse = await axios.post('https://api.cashfree.com/pg/orders', ...)
-    
-    // Split Settlement Logic:
-    const convenienceFee = 1;
-    const vendorAmount = amount - convenienceFee;
-    
-    console.log(`Order ${orderId} created. Total: ₹${amount}`);
-    console.log(`Split: Platform (SalarKhan Patan) gets ₹${convenienceFee}, Vendor gets ₹${vendorAmount}`);
-
-    // Return a mock payment session/link
-    res.json({
-      paymentSessionId: `session_${Math.random().toString(36).substr(2, 9)}`,
-      orderId: orderId,
-      paymentUrl: `https://mock.cashfree.com/pay/${orderId}`
-    });
+  // API routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
   });
 
-  // Cashfree Webhook Simulation
-  app.post("/api/payments/webhook", (req, res) => {
-    const { orderId, status } = req.body;
-    console.log(`Webhook received for order ${orderId}: ${status}`);
-    // Here you would update Firestore order status to 'paid'
-    res.sendStatus(200);
+  app.post("/api/payments/create-session", async (req, res) => {
+    try {
+      const { amount, customerId, orderId, customerPhone, customerEmail, customerName } = req.body;
+
+      const request = {
+        order_amount: amount,
+        order_currency: "INR",
+        order_id: orderId,
+        customer_details: {
+          customer_id: customerId,
+          customer_phone: customerPhone || "9999999999",
+          customer_email: customerEmail,
+          customer_name: customerName || "Customer"
+        },
+        order_meta: {
+          return_url: `${process.env.APP_URL || 'http://localhost:3000'}/?order_id={order_id}`
+        }
+      };
+
+      const response = await (Cashfree as any).PGCreateOrder("2023-08-01", request);
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Cashfree Error:', error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data || error.message });
+    }
   });
 
   // Vite middleware for development
@@ -53,15 +58,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`KL Pay Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 

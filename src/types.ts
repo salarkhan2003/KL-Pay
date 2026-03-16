@@ -45,6 +45,10 @@ export interface OrderItem {
   quantity: number;
 }
 
+export interface CartItem extends OrderItem {
+  imageUrl: string;
+}
+
 export interface Order {
   id: string;
   studentId: string;
