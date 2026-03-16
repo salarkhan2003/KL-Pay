@@ -138,6 +138,15 @@ export default function App() {
   // --- Auth & Profile ---
 
   useEffect(() => {
+    // If Firebase env vars aren't set (e.g. Vercel without env vars configured),
+    // just skip auth and show the login screen instead of crashing.
+    const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+    if (!apiKey || apiKey === 'placeholder-api-key') {
+      console.warn('Firebase env vars not configured — running in demo mode.');
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
