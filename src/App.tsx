@@ -206,7 +206,16 @@ export default function App() {
     await signInWithPopup(auth, provider);
   };
 
-  const logout = () => signOut(auth);
+  const logout = () => {
+    // Clear local state first (works in both demo and real Firebase mode)
+    setProfile(null);
+    setUser(null);
+    setIsSkipped(false);
+    setView('home');
+    setCart([]);
+    // Also sign out of Firebase if a real session exists
+    signOut(auth).catch(() => {});
+  };
 
   // Dev bypass — works with or without Firebase env vars
   const devLogin = async (role: 'student' | 'merchant' | 'admin') => {
