@@ -208,12 +208,32 @@ export default function App() {
 
   const logout = () => signOut(auth);
 
-  // Dev bypass — sign in anonymously then force a role profile
+  // Dev bypass — works with or without Firebase env vars
   const devLogin = async (role: 'student' | 'merchant' | 'admin') => {
+    const isDemo = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'placeholder-api-key';
+    const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
+
+    // In demo mode (no Firebase keys), skip signInAnonymously and just set state
+    if (isDemo) {
+      const devProfile: UserProfile = {
+        uid: `demo_${role}_${Date.now()}`,
+        email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`,
+        displayName: names[role],
+        role,
+        kCoins: role === 'student' ? 120 : 0,
+        streak: role === 'student' ? 5 : 0,
+        block: 'CSE',
+        phone: '9999999999',
+      };
+      setProfile(devProfile);
+      setIsSkipped(false);
+      setView(role === 'merchant' ? 'merchant' : role === 'admin' ? 'admin' : 'home');
+      return;
+    }
+
     try {
       const cred = await signInAnonymously(auth);
       const uid = cred.user.uid;
-      const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
       const devProfile: UserProfile = {
         uid,
         email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`,

@@ -13,7 +13,7 @@ import { ClayButton } from './ClayButton';
 import { cn } from '../utils';
 
 // ── Admin PIN — to change: update the string below ───────────────────────────
-const DEV_PIN = 'NO PASSWORD KLU';
+const DEV_PIN = 'KLU2026';
 
 interface LoginPageProps {
   onSkip: () => void;
