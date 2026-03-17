@@ -948,7 +948,8 @@ export default function App() {
     </div>
   );
 
-  if (!user && !isSkipped) return (
+  // Show login if: no real Firebase user AND no demo profile AND not skipped
+  if (!user && !profile && !isSkipped) return (
     <LoginPage
       onSkip={() => setIsSkipped(true)}
       onMagicLinkComplete={async (uid, email, phone) => {
