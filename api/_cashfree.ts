@@ -1,15 +1,14 @@
 // Shared Cashfree setup for all API routes
-import { Cashfree, CFEnvironment } from "cashfree-pg";
+import { Cashfree } from "cashfree-pg";
 
-export const cf = new Cashfree();
-(Cashfree as any).XClientId     = process.env.CASHFREE_APP_ID;
-(Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY;
-(Cashfree as any).XEnvironment  =
-  process.env.CASHFREE_ENV === "sandbox" ? CFEnvironment.SANDBOX : CFEnvironment.PRODUCTION;
+// Cashfree SDK v3+ uses static config — set before any call
+(Cashfree as any).XClientId     = process.env.CASHFREE_APP_ID     || "";
+(Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+(Cashfree as any).XEnvironment  = process.env.CASHFREE_ENV === "sandbox" ? "SANDBOX" : "PRODUCTION";
 
-export const ADMIN_VPA   = process.env.ADMIN_VPA || "salarkhan@okaxis";
+export const ADMIN_VPA    = process.env.ADMIN_VPA || "salarkhan@okaxis";
 export const PLATFORM_FEE = 1;
-export const APP_URL      = process.env.APP_URL || "https://kl-pay.vercel.app";
+export const APP_URL      = process.env.APP_URL   || "https://kl-pay.vercel.app";
 
 export async function createSplitOrder(params: {
   orderId: string;
@@ -25,14 +24,14 @@ export async function createSplitOrder(params: {
 }) {
   const vendorAmount = params.totalAmount - PLATFORM_FEE;
   const request: any = {
-    order_amount: params.totalAmount,
+    order_amount:   params.totalAmount,
     order_currency: "INR",
-    order_id: params.orderId,
+    order_id:       params.orderId,
     customer_details: {
-      customer_id: params.customerId,
+      customer_id:    params.customerId,
       customer_phone: params.customerPhone || "9999999999",
       customer_email: params.customerEmail,
-      customer_name: params.customerName || "KLU Student",
+      customer_name:  params.customerName  || "KLU Student",
     },
     order_meta: {
       return_url: params.returnUrl,
@@ -44,6 +43,7 @@ export async function createSplitOrder(params: {
       { vendor_id: ADMIN_VPA,          amount: PLATFORM_FEE, percentage: null },
     ],
   };
-  const response = await cf.PGCreateOrder("2023-08-01", request);
+
+  const response = await (Cashfree as any).PGCreateOrder("2023-08-01", request);
   return response.data;
 }

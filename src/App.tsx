@@ -291,7 +291,11 @@ export default function App() {
 
   // --- Real-time Data Listeners ---
 
+  const isDemo = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'placeholder-api-key';
+
   useEffect(() => {
+    // Skip Firestore listeners in demo mode (no Firebase configured)
+    if (isDemo) return;
     // Listen for Outlets
     const q = query(collection(db, 'outlets'));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -464,7 +468,7 @@ export default function App() {
           await setDoc(doc(db, 'outlets', vendor.id), {
             ...outletData,
             isOpen: true,
-            merchantId: user?.uid // For demo
+            merchantId: user?.uid || '' // For demo
           });
           
           for (const item of menu) {
@@ -493,6 +497,8 @@ export default function App() {
 
 
   useEffect(() => {
+    const isDemo = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'placeholder-api-key';
+    if (isDemo) return; // no Firestore in demo mode
     const isAdmin = user?.email?.toLowerCase() === 'salarkhanpatan7861@gmail.com';
     if (outlets.length === 0 && (profile?.role === 'admin' || isAdmin)) {
       console.log("Seeding data for admin...");
@@ -502,7 +508,7 @@ export default function App() {
 
 
   useEffect(() => {
-    if (!user) return;
+    if (isDemo || !user) return;
     
     // Listen for Student Orders
     const q = query(
@@ -519,7 +525,7 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!profile || profile.role !== 'merchant' || !user) return;
+    if (isDemo || !profile || profile.role !== 'merchant' || !user) return;
     
     // Find the outlet owned by this merchant — check both merchantId field and profile.merchantOutletId
     const merchantOutlet = outlets.find(o => o.merchantId === user.uid)
@@ -542,7 +548,7 @@ export default function App() {
 
   // Fetch Merchant Menu
   useEffect(() => {
-    if (!profile || profile.role !== 'merchant' || !user) return;
+    if (isDemo || !profile || profile.role !== 'merchant' || !user) return;
 
     const merchantOutlet = outlets.find(o => o.merchantId === user.uid)
       || (profile.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
@@ -562,7 +568,7 @@ export default function App() {
 
   // Fetch Support Tickets
   useEffect(() => {
-    if (!user) return;
+    if (isDemo || !user) return;
     const q = query(collection(db, 'support'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket)));
@@ -574,7 +580,7 @@ export default function App() {
 
   // Fetch Transactions (unified history)
   useEffect(() => {
-    if (!user) return;
+    if (isDemo || !user) return;
     const q = query(collection(db, 'transactions'), where('studentId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
@@ -605,7 +611,7 @@ export default function App() {
 
   // Fetch All Orders (Admin only)
   useEffect(() => {
-    if (profile?.role !== 'admin') return;
+    if (isDemo || profile?.role !== 'admin') return;
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setAllOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
@@ -616,7 +622,7 @@ export default function App() {
   }, [profile]);
 
   useEffect(() => {
-    if (!selectedOutlet) return;
+    if (isDemo || !selectedOutlet) return;
     const q = query(collection(db, `outlets/${selectedOutlet.id}/menu`));
     const unsub = onSnapshot(q, (snapshot) => {
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem)));
