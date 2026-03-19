@@ -1,9 +1,7 @@
 // Shared Cashfree setup for all Vercel API routes
-import Cashfree from "cashfree-pg";
 
 const appId     = process.env.CASHFREE_APP_ID     || "";
 const secretKey = process.env.CASHFREE_SECRET_KEY || "";
-const env       = process.env.CASHFREE_ENV === "sandbox" ? "sandbox" : "production";
 
 export const ADMIN_VPA    = process.env.ADMIN_VPA || "7993547438@kotak811";
 export const PLATFORM_FEE = 1;
