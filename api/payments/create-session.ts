@@ -4,7 +4,7 @@ import { createSplitOrder, ADMIN_VPA, APP_URL } from "../_cashfree";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   try {
-    const { amount, customerId, orderId, customerPhone, customerEmail, customerName, merchantVpa } = req.body;
+    const { amount, customerId, orderId, customerPhone, customerEmail, customerName, merchantVpa, token, outletName } = req.body;
     const data = await createSplitOrder({
       orderId,
       totalAmount: amount,
@@ -15,6 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerPhone,
       returnUrl: `${APP_URL}/?order_id={order_id}`,
       flow: "Food_Order",
+      note: token ? `token:${token}` : "",
+      orderTags: { token: token || orderId, outletName: outletName || "" },
     });
     res.json(data);
   } catch (error: any) {

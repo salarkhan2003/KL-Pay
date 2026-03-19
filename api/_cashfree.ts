@@ -18,6 +18,7 @@ export async function createSplitOrder(params: {
   returnUrl: string;
   flow: "Food_Order" | "Peer_to_Merchant_Pay";
   note?: string;
+  orderTags?: Record<string, string>;
 }) {
   const vendorAmount = params.totalAmount - PLATFORM_FEE;
 
@@ -45,7 +46,7 @@ export async function createSplitOrder(params: {
           return_url: params.returnUrl,
           notify_url: `${APP_URL}/api/payments/webhook`,
         },
-        order_tags: { flow: params.flow, note: params.note || "" },
+        order_tags: { flow: params.flow, note: params.note || "", ...params.orderTags },
         order_splits: [
           { vendor_id: params.merchantVpa, amount: vendorAmount, percentage: null },
           { vendor_id: ADMIN_VPA,          amount: PLATFORM_FEE, percentage: null },
