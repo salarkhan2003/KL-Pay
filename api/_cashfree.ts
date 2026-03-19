@@ -6,7 +6,7 @@ import { Cashfree } from "cashfree-pg";
 (Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
 (Cashfree as any).XEnvironment  = process.env.CASHFREE_ENV === "sandbox" ? "SANDBOX" : "PRODUCTION";
 
-export const ADMIN_VPA    = process.env.ADMIN_VPA || "salarkhan@okaxis";
+export const ADMIN_VPA    = process.env.ADMIN_VPA || "7993547438@kotak811";
 export const PLATFORM_FEE = 1;
 export const APP_URL      = process.env.APP_URL   || "https://kl-pay.vercel.app";
 
