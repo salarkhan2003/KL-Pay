@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       flow: "Peer_to_Merchant_Pay",
       note,
     });
-    res.json({ ...data, orderId });
+    res.json({ ...(data as object), orderId });
   } catch (error: any) {
     console.error("direct-pay error:", error.response?.data || error.message);
     res.status(500).json({ error: error.response?.data || error.message });
