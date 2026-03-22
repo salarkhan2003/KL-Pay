@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { requestId?: string };
     console.log("Courier Welcome requestId:", result.requestId);
     res.json({ success: true, requestId: result.requestId });
   } catch (err: any) {
