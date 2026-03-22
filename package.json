@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@trycourier/courier-react": "^9.0.5",
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.13.6",
     "cashfree-pg": "^5.1.0",
