@@ -20,8 +20,6 @@ export async function createSplitOrder(params: {
   note?: string;
   orderTags?: Record<string, string>;
 }) {
-  const vendorAmount = params.totalAmount - PLATFORM_FEE;
-
   const response = await fetch(
     `https://api.cashfree.com/pg/orders`,
     {
@@ -47,10 +45,6 @@ export async function createSplitOrder(params: {
           notify_url: `${APP_URL}/api/payments/webhook`,
         },
         order_tags: { flow: params.flow, note: params.note || "", ...params.orderTags },
-        order_splits: [
-          { vendor_id: params.merchantVpa, amount: vendorAmount, percentage: null },
-          { vendor_id: ADMIN_VPA,          amount: PLATFORM_FEE, percentage: null },
-        ],
       }),
     }
   );
