@@ -48,7 +48,11 @@ async function ensureCanteensSeeded() {
   try {
     for (const o of SEED_OUTLETS) await upsertOutlet(o);
     for (const m of SEED_MENU) await upsertMenuItem(m);
-  } catch (e) { console.warn('seed:', e); }
+  } catch (e: any) {
+    // Tables don't exist yet — user needs to run the SQL migration
+    if (e?.code === 'PGRST205' || e?.message?.includes('schema cache')) return;
+    console.warn('seed:', e);
+  }
 }
 
 // ── Desktop sidebar navigation ────────────────────────────────────────────────
@@ -114,6 +118,7 @@ export default function App() {
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [dbMissing, setDbMissing] = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ message: msg, type });
@@ -198,11 +203,18 @@ export default function App() {
   // ── Supabase realtime listeners ───────────────────────────────────────────
   useEffect(() => {
     const loadOutlets = async () => {
-      const { data } = await supabase.from('outlets').select('*');
+      const { data, error } = await supabase.from('outlets').select('*');
+      if (error) {
+        // Table doesn't exist — show setup banner, don't crash
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          setDbMissing(true);
+        }
+        return;
+      }
+      setDbMissing(false);
       if (data && data.length > 0) {
         setOutlets(data.map(rowToOutlet));
       } else {
-        // Tables exist but are empty — seed the canteens automatically
         await ensureCanteensSeeded();
         const { data: seeded } = await supabase.from('outlets').select('*');
         if (seeded) setOutlets(seeded.map(rowToOutlet));
@@ -397,6 +409,31 @@ export default function App() {
       </div>
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="mt-12 text-display text-4xl font-black text-white tracking-tighter">KL ONE</motion.h1>
+    </div>
+  );
+
+  if (dbMissing) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-crimson-dark p-8 text-center">
+      <div className="w-20 h-20 rounded-[28px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
+        <UtensilsCrossed className="w-10 h-10 text-amber-400" />
+      </div>
+      <h1 className="text-display text-3xl font-black text-white mb-2">Database Setup Required</h1>
+      <p className="text-white/40 text-sm mb-6 max-w-sm">
+        The Supabase tables don't exist yet. Run the SQL migration to create them.
+      </p>
+      <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl p-4 text-left mb-6">
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Steps</p>
+        <ol className="space-y-2 text-sm text-white/60">
+          <li className="flex gap-2"><span className="text-klu-red font-black">1.</span> Open <span className="text-white font-bold">Supabase Dashboard</span></li>
+          <li className="flex gap-2"><span className="text-klu-red font-black">2.</span> Go to <span className="text-white font-bold">SQL Editor → New Query</span></li>
+          <li className="flex gap-2"><span className="text-klu-red font-black">3.</span> Paste & run <span className="text-white font-bold">scripts/create-tables.sql</span></li>
+          <li className="flex gap-2"><span className="text-klu-red font-black">4.</span> Refresh this page</li>
+        </ol>
+      </div>
+      <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer"
+        className="px-6 py-3 bg-klu-red rounded-2xl text-white font-black text-sm shadow-lg shadow-klu-red/30">
+        Open Supabase Dashboard →
+      </a>
     </div>
   );
 
