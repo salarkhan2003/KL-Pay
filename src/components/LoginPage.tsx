@@ -6,11 +6,9 @@ import {
   CheckCircle2, RefreshCw, User, Hash, Home, ChevronDown,
 } from 'lucide-react';
 import {
-  sendMagicLink, completeMagicLink, getAuthErrorMessage, isKluEmail,
-  saveUserProfile, ProfileExtras,
+  sendMagicLink, checkSession, getAuthErrorMessage, isKluEmail,
+  saveUserProfile, ProfileExtras, getMerchantOutletByCode,
 } from '../auth';
-import { auth } from '../firebase';
-import { isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
 import { cn } from '../utils';
@@ -34,9 +32,10 @@ interface LoginPageProps {
   onSkip: () => void;
   onMagicLinkComplete: (uid: string, email: string, phone: string) => Promise<void>;
   onDevLogin: (role: 'student' | 'merchant' | 'admin') => Promise<void>;
+  onMerchantCodeLogin: (code: string) => Promise<boolean>;
 }
 
-type Step = 'form' | 'sent' | 'cross_device' | 'completing' | 'profile_setup';
+type Step = 'form' | 'sent' | 'merchant_code' | 'completing' | 'profile_setup';
 type DevStep = 'pin' | 'role';
 
 // Pending new-user data held between magic link completion and profile setup
@@ -46,10 +45,12 @@ interface PendingUser {
   phone: string;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplete, onDevLogin }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplete, onDevLogin, onMerchantCodeLogin }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [crossEmail, setCrossEmail] = useState('');
+  const [merchantCode, setMerchantCode] = useState('');
+  const [merchantCodeError, setMerchantCodeError] = useState('');
+  const [merchantCodeLoading, setMerchantCodeLoading] = useState(false);
   const [step, setStep] = useState<Step>('form');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,16 +73,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   const [devLoading, setDevLoading] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  // Detect magic link on load
+  // Detect Supabase session on load (handles magic link redirect)
   useEffect(() => {
-    const href = window.location.href;
-    if (!href.includes('oobCode') && !href.includes('apiKey')) return;
     (async () => {
       try {
-        const result = await completeMagicLink(href);
+        const result = await checkSession();
         if (!result) return;
         if (result.isNewUser) {
-          // New user — collect profile details first
           setPendingUser({ uid: result.uid, email: result.email, phone: result.phone });
           setStep('profile_setup');
         } else {
@@ -89,12 +87,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
           await onMagicLinkComplete(result.uid, result.email, result.phone);
         }
       } catch (err: any) {
-        if (err.message?.includes('Could not find your email')) {
-          setStep('cross_device');
-        } else {
-          setError(getAuthErrorMessage(err));
-          setStep('form');
-        }
+        setError(getAuthErrorMessage(err));
+        setStep('form');
       }
     })();
   }, []);
@@ -113,17 +107,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   };
 
   const handleCrossDeviceSignIn = async () => {
-    if (!isKluEmail(crossEmail.trim())) { setError('Please use your KLU email.'); return; }
-    setLoading(true); setError(null);
-    try {
-      if (!isSignInWithEmailLink(auth, window.location.href)) { setError('Invalid sign-in link.'); return; }
-      const cred = await signInWithEmailLink(auth, crossEmail.trim(), window.location.href);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      await onMagicLinkComplete(cred.user.uid, cred.user.email ?? crossEmail, '');
-    } catch (err: any) {
-      setError(getAuthErrorMessage(err));
-    } finally {
-      setLoading(false);
+    // No longer needed — Supabase handles cross-device automatically
+  };
+
+  const handleMerchantCodeLogin = async () => {
+    if (!merchantCode.trim()) { setMerchantCodeError('Enter your merchant code.'); return; }
+    setMerchantCodeLoading(true);
+    setMerchantCodeError('');
+    const success = await onMerchantCodeLogin(merchantCode.trim().toUpperCase());
+    if (!success) {
+      setMerchantCodeError('Invalid merchant code. Try again.');
+      setMerchantCodeLoading(false);
     }
   };
 
@@ -224,21 +218,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
               </motion.div>
             )}
 
-            {/* Cross-device */}
-            {step === 'cross_device' && (
-              <motion.div key="cross" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                <h2 className="text-xl font-black text-white">Confirm your email</h2>
-                <p className="text-xs text-white/40">Opened on a different device? Enter your KLU email to finish.</p>
+            {/* Merchant code login */}
+            {step === 'merchant_code' && (
+              <motion.div key="merchant_code" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+                <h2 className="text-xl font-black text-white">Merchant Login</h2>
+                <p className="text-xs text-white/40">Enter your unique merchant code to access your dashboard.</p>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
-                  <input type="email" placeholder="your@kluniversity.in"
-                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20"
-                    value={crossEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCrossEmail(e.target.value.trim())} />
+                  <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+                  <input type="text" placeholder="e.g. FRIENDS2024"
+                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20 uppercase tracking-widest"
+                    value={merchantCode}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setMerchantCode(e.target.value.toUpperCase()); setMerchantCodeError(''); }}
+                    onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleMerchantCodeLogin()}
+                  />
                 </div>
-                {error && <ErrorBox message={error} />}
-                <ClayButton onClick={handleCrossDeviceSignIn} className="w-full h-14" disabled={loading}>
-                  {loading ? 'Verifying...' : 'Complete Sign-In'}
+                {merchantCodeError && <ErrorBox message={merchantCodeError} />}
+                <ClayButton onClick={handleMerchantCodeLogin} className="w-full h-14" disabled={merchantCodeLoading || !merchantCode}>
+                  {merchantCodeLoading ? 'Verifying...' : 'Access Dashboard'}
                 </ClayButton>
+                <button onClick={() => { setStep('form'); setMerchantCode(''); setMerchantCodeError(''); }}
+                  className="text-xs font-bold text-white/40 hover:text-white transition-colors flex items-center gap-1 mx-auto">
+                  <ArrowRight className="w-3 h-3 rotate-180" /> Back to sign in
+                </button>
               </motion.div>
             )}
 
@@ -371,6 +372,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                     {loading ? 'Sending...' : 'Send Magic Link'}
                   </ClayButton>
                 </div>
+                <button onClick={() => setStep('merchant_code')}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-white/10 text-white/30 hover:border-emerald-500/40 hover:text-emerald-400/70 transition-all text-xs font-black uppercase tracking-widest">
+                  <Store className="w-4 h-4" /> Merchant Login
+                </button>
               </motion.div>
             )}
 

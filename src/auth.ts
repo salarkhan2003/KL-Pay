@@ -1,47 +1,18 @@
 /**
- * auth.ts — KL One Magic Link Authentication
+ * auth.ts — KL One Authentication via Supabase
  *
- * Handles the full email-link (passwordless) sign-in flow:
- *   1. sendMagicLink()   — sends the sign-in email and persists email+phone
- *   2. completeMagicLink() — called on app load; detects the link and signs in
- *   3. saveUserProfile()  — upserts the Firestore user document after sign-in
+ * Uses Supabase magic link (OTP email) for passwordless sign-in.
+ * Profile data is stored in Supabase `profiles` table AND Firestore (for real-time).
  */
 
-import {
-  auth,
-  db,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-} from './firebase';
+import { supabase, upsertProfile, extractStudentId } from './supabase';
+import { db } from './firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { supabase } from './supabase';
 import { UserProfile } from './types';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const STORAGE_EMAIL_KEY = 'klone_email_for_signin';
-const STORAGE_PHONE_KEY = 'klone_phone_for_signin';
-
-// Use current origin so the magic link redirects back to this app.
-// In Firebase Console → Authentication → Settings → Authorized domains,
-// add "localhost" (no port) for local dev, and your real domain for production.
-const CONTINUE_URL =
-  typeof window !== 'undefined'
-    ? window.location.origin
-    : 'https://gen-lang-client-0573573934.firebaseapp.com';
-
-const ACTION_CODE_SETTINGS = {
-  url: CONTINUE_URL,
-  handleCodeInApp: true,
-};
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
-export const VALID_EMAIL_DOMAINS = ['@kluniversity.in', '@klu.ac.in', '@gmail.com'];
-
 export function isKluEmail(email: string): boolean {
-  // Accept KLU emails and gmail for testing; in production tighten this
   return email.includes('@') && email.length > 5;
 }
 
@@ -51,43 +22,35 @@ export function isValidPhone(phone: string): boolean {
 
 // ─── Error Messages ───────────────────────────────────────────────────────────
 
-const FIREBASE_ERROR_MAP: Record<string, string> = {
-  'auth/unauthorized-continue-uri':
-    'This domain is not authorized. Contact support.',
-  'auth/invalid-email': 'Invalid email address.',
-  'auth/invalid-action-code':
-    'This link has expired or already been used. Request a new one.',
-  'auth/user-disabled': 'This account has been disabled.',
-  'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
-  'auth/network-request-failed': 'Network error. Check your connection.',
-  'auth/expired-action-code': 'This link has expired. Request a new one.',
-};
-
 export function getAuthErrorMessage(err: any): string {
-  const code: string = err?.code ?? '';
-  return FIREBASE_ERROR_MAP[code] ?? err?.message ?? 'Something went wrong. Try again.';
+  const msg: string = err?.message ?? '';
+  if (msg.includes('Invalid login credentials')) return 'Invalid email or password.';
+  if (msg.includes('Email not confirmed')) return 'Check your email for the magic link.';
+  if (msg.includes('rate limit')) return 'Too many attempts. Please wait and try again.';
+  if (msg.includes('network')) return 'Network error. Check your connection.';
+  return msg || 'Something went wrong. Try again.';
 }
 
-// ─── Step 1: Send Magic Link ──────────────────────────────────────────────────
+// ─── Step 1: Send Magic Link (Supabase OTP) ───────────────────────────────────
 
 export async function sendMagicLink(email: string, phone: string): Promise<void> {
-  if (!isKluEmail(email)) {
-    throw Object.assign(new Error('Please use your KLU email (@kluniversity.in).'), {
-      code: 'auth/invalid-email',
-    });
-  }
-  if (!isValidPhone(phone)) {
-    throw new Error('Please enter a valid 10-digit mobile number.');
-  }
+  if (!isKluEmail(email)) throw new Error('Please enter a valid email address.');
+  if (!isValidPhone(phone)) throw new Error('Please enter a valid 10-digit mobile number.');
 
-  await sendSignInLinkToEmail(auth, email, ACTION_CODE_SETTINGS);
+  // Store phone for after redirect
+  localStorage.setItem('klone_phone', phone.replace(/\D/g, ''));
 
-  // Persist locally so we can retrieve after the redirect
-  localStorage.setItem(STORAGE_EMAIL_KEY, email);
-  localStorage.setItem(STORAGE_PHONE_KEY, phone.replace(/\D/g, ''));
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: window.location.origin,
+    },
+  });
+  if (error) throw error;
 }
 
-// ─── Step 2: Complete Sign-In from Link ───────────────────────────────────────
+// ─── Step 2: Check session on load (Supabase handles redirect) ────────────────
 
 export interface MagicLinkResult {
   uid: string;
@@ -96,35 +59,22 @@ export interface MagicLinkResult {
   isNewUser: boolean;
 }
 
-export async function completeMagicLink(href: string): Promise<MagicLinkResult | null> {
-  if (!isSignInWithEmailLink(auth, href)) return null;
+export async function checkSession(): Promise<MagicLinkResult | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
 
-  const email = localStorage.getItem(STORAGE_EMAIL_KEY);
-  if (!email) {
-    // Edge case: user opened the link on a different device/browser
-    throw new Error(
-      'Could not find your email. Please enter it below to complete sign-in.'
-    );
-  }
+  const u = session.user;
+  const phone = localStorage.getItem('klone_phone') || u.user_metadata?.phone || '';
+  localStorage.removeItem('klone_phone');
 
-  const phone = localStorage.getItem(STORAGE_PHONE_KEY) ?? '';
+  // Determine if new user by checking if profile exists in Firestore
+  const snap = await getDoc(doc(db, 'users', u.id)).catch(() => null);
+  const isNewUser = !snap?.exists();
 
-  const credential = await signInWithEmailLink(auth, email, href);
-
-  // Clean up storage and URL
-  localStorage.removeItem(STORAGE_EMAIL_KEY);
-  localStorage.removeItem(STORAGE_PHONE_KEY);
-  window.history.replaceState({}, document.title, window.location.pathname);
-
-  return {
-    uid: credential.user.uid,
-    email: credential.user.email ?? email,
-    phone,
-    isNewUser: credential.user.metadata.creationTime === credential.user.metadata.lastSignInTime,
-  };
+  return { uid: u.id, email: u.email || '', phone, isNewUser };
 }
 
-// ─── Step 3: Upsert Firestore + Supabase Profile ──────────────────────────────
+// ─── Profile Extras (collected during signup) ─────────────────────────────────
 
 export interface ProfileExtras {
   displayName?: string;
@@ -132,6 +82,8 @@ export interface ProfileExtras {
   gender?: 'male' | 'female' | 'other';
   hostel?: string;
 }
+
+// ─── Step 3: Save / Upsert Profile (Firestore + Supabase) ────────────────────
 
 export async function saveUserProfile(
   uid: string,
@@ -141,31 +93,28 @@ export async function saveUserProfile(
   extras: ProfileExtras = {}
 ): Promise<UserProfile> {
   const ref = doc(db, 'users', uid);
-  const snap = await getDoc(ref);
-
+  const snap = await getDoc(ref).catch(() => null);
   const isAdmin = email.toLowerCase() === adminEmail.toLowerCase();
+  const studentId = extras.studentId || extractStudentId(email) || undefined;
 
-  if (snap.exists()) {
+  if (snap?.exists()) {
     const existing = snap.data() as UserProfile;
     const updates: Partial<UserProfile> = {};
-
     if (phone && existing.phone !== phone) updates.phone = phone;
     if (isAdmin && existing.role !== 'admin') updates.role = 'admin';
     if (extras.displayName && !existing.displayName) updates.displayName = extras.displayName;
-    if (extras.studentId && !existing.studentId) updates.studentId = extras.studentId;
+    if (studentId && !existing.studentId) updates.studentId = studentId;
     if (extras.gender && !existing.gender) updates.gender = extras.gender;
     if (extras.hostel && !existing.hostel) updates.hostel = extras.hostel;
 
     if (Object.keys(updates).length > 0) {
-      await updateDoc(ref, updates);
+      await updateDoc(ref, updates).catch(console.warn);
     }
-
     const merged = { ...existing, ...updates };
-    await upsertSupabaseProfile(merged);
+    await syncToSupabase(merged);
     return merged;
   }
 
-  // New user
   const newProfile: UserProfile = {
     uid,
     email,
@@ -175,36 +124,48 @@ export async function saveUserProfile(
     kCoins: 0,
     streak: 0,
     block: 'CSE',
-    studentId: extras.studentId,
+    studentId,
     gender: extras.gender,
     hostel: extras.hostel,
   };
 
-  await setDoc(ref, { ...newProfile, createdAt: serverTimestamp() });
-  await upsertSupabaseProfile(newProfile);
+  await setDoc(ref, { ...newProfile, createdAt: serverTimestamp() }).catch(console.warn);
+  await syncToSupabase(newProfile);
   return newProfile;
 }
 
-// ─── Supabase profiles upsert ─────────────────────────────────────────────────
+// ─── Sync profile to Supabase ─────────────────────────────────────────────────
 
-async function upsertSupabaseProfile(profile: UserProfile): Promise<void> {
-  try {
-    await supabase.from('profiles').upsert({
-      id: profile.uid,
-      email: profile.email,
-      display_name: profile.displayName,
-      role: profile.role,
-      phone: profile.phone || null,
-      student_id: profile.studentId || null,
-      gender: profile.gender || null,
-      hostel: profile.hostel || null,
-      k_coins: profile.kCoins ?? 0,
-      streak: profile.streak ?? 0,
-      block: profile.block || 'CSE',
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-  } catch (err) {
-    // Non-fatal — Firestore is source of truth, Supabase is secondary
-    console.warn('Supabase profile upsert failed:', err);
-  }
+async function syncToSupabase(profile: UserProfile): Promise<void> {
+  await upsertProfile({
+    id: profile.uid,
+    email: profile.email,
+    display_name: profile.displayName,
+    role: profile.role,
+    phone: profile.phone || null,
+    student_id: profile.studentId || null,
+    gender: profile.gender || null,
+    hostel: profile.hostel || null,
+    k_coins: profile.kCoins ?? 0,
+    streak: profile.streak ?? 0,
+    block: profile.block || 'CSE',
+    merchant_outlet_id: profile.merchantOutletId || null,
+  });
+}
+
+// ─── Sign out ─────────────────────────────────────────────────────────────────
+
+export async function signOutUser(): Promise<void> {
+  await supabase.auth.signOut();
+}
+
+// ─── Merchant login via unique code ──────────────────────────────────────────
+
+const MERCHANT_CODES: Record<string, string> = {
+  'FRIENDS2024': 'friends-canteen',
+  'TESTCANTEEN': 'test-canteen',
+};
+
+export function getMerchantOutletByCode(code: string): string | null {
+  return MERCHANT_CODES[code.toUpperCase()] || null;
 }
