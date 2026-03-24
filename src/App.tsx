@@ -208,9 +208,17 @@ export default function App() {
   const merchantCodeLogin = async (code: string): Promise<boolean> => {
     const outletId = getMerchantOutletByCode(code);
     if (!outletId) return false;
-    const p: UserProfile = { uid: `merchant_${outletId}_${Date.now()}`, email: `merchant_${outletId}@kluniversity.in`, displayName: outletId === FRIENDS_ID ? "Friend's Canteen" : 'Test Canteen', role: 'merchant', kCoins: 0, streak: 0, block: 'CSE', merchantOutletId: outletId };
+    const seedOutlet = SEED_OUTLETS.find(o => o.id === outletId);
+    const p: UserProfile = {
+      uid: `merchant_${outletId}_${Date.now()}`,
+      email: `merchant_${outletId}@kluniversity.in`,
+      displayName: seedOutlet?.name || outletId,
+      role: 'merchant', kCoins: 0, streak: 0, block: 'CSE',
+      merchantOutletId: outletId,
+    };
     setProfile(p); setIsSkipped(false);
-    await ensureCanteensSeeded();
+    // Seed in background, don't await
+    ensureCanteensSeeded().catch(() => {});
     setView('merchant');
     return true;
   };
@@ -228,6 +236,9 @@ export default function App() {
     if (!profile) return;
     await supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', outletId);
     await updateProfile({ merchantOutletId: outletId });
+    // Refresh outlets so merchantOutlet resolves immediately
+    const { data } = await supabase.from('outlets').select('*');
+    if (data) setOutlets(data.map(rowToOutlet));
   };
 
   // ── Seed canteens ─────────────────────────────────────────────────────────
@@ -245,18 +256,30 @@ export default function App() {
         if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
           setDbMissing(true);
         }
+        // On ANY error (including 401/403) fall back to seed data so UI isn't blank
+        setOutlets(SEED_OUTLETS.map(o => ({
+          id: o.id, name: o.name, description: o.description, imageUrl: o.image_url,
+          isOpen: o.is_open, merchantId: o.merchant_id, blockName: o.block_name,
+          category: o.category, upiId: o.upi_id, timings: o.timings, rating: o.rating,
+        })));
         return;
       }
       setDbMissing(false);
       if (data && data.length > 0) {
         setOutlets(data.map(rowToOutlet));
       } else {
-        // Only seed when DB is genuinely empty — fire-and-forget, don't block UI
+        // Seed when genuinely empty — fire-and-forget
         ensureCanteensSeeded().then(() => {
           supabase.from('outlets').select('*').then(({ data: seeded }) => {
-            if (seeded) setOutlets(seeded.map(rowToOutlet));
+            if (seeded && seeded.length > 0) setOutlets(seeded.map(rowToOutlet));
           });
         });
+        // Show seed data immediately while seeding runs
+        setOutlets(SEED_OUTLETS.map(o => ({
+          id: o.id, name: o.name, description: o.description, imageUrl: o.image_url,
+          isOpen: o.is_open, merchantId: o.merchant_id, blockName: o.block_name,
+          category: o.category, upiId: o.upi_id, timings: o.timings, rating: o.rating,
+        })));
       }
     };
     loadOutlets();
@@ -322,7 +345,25 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedOutlet) return;
-    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
+    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data, error }) => {
+      if (data && data.length > 0) {
+        setMenuItems(data.map(rowToMenuItem));
+      } else if (!error) {
+        // Empty — show seed menu as fallback
+        setMenuItems(SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
+          id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
+          price: m.price, imageUrl: m.image_url, category: m.category,
+          isAvailable: m.is_available, prepTime: m.prep_time,
+        })));
+      } else {
+        // DB error — show seed menu so students can still browse
+        setMenuItems(SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
+          id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
+          price: m.price, imageUrl: m.image_url, category: m.category,
+          isAvailable: m.is_available, prepTime: m.prep_time,
+        })));
+      }
+    });
     const ch = supabase.channel(`menu_view_${selectedOutlet.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
       supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
     }).subscribe();
@@ -420,6 +461,10 @@ export default function App() {
     // If merchant is creating a new outlet and has no outlet assigned yet, auto-assign it
     if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
       await assignOutlet(id);
+    } else {
+      // Refresh outlets list
+      const { data: fresh } = await supabase.from('outlets').select('*');
+      if (fresh) setOutlets(fresh.map(rowToOutlet));
     }
     showToast(data.id ? 'Outlet updated' : 'Outlet added');
   };

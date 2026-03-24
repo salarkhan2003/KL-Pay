@@ -176,17 +176,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             </GlassCard>
           ) : (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-              <p className="text-amber-400 text-xs font-black">No outlet assigned yet</p>
-              <p className="text-white/30 text-[10px] mt-0.5">Select an outlet below to get started</p>
-            </div>
+            <button onClick={() => onSwitchView('merchant')}
+              className="w-full p-4 rounded-2xl bg-klu-red/10 border border-klu-red/30 text-left active:scale-[0.98] transition-all">
+              <p className="text-klu-red text-xs font-black">No outlet assigned yet</p>
+              <p className="text-white/40 text-[10px] mt-0.5">Tap to go to Dashboard → Create or assign an outlet</p>
+            </button>
           )}
           <MenuList items={[
             { label: 'Dashboard',         icon: BarChart2,       view: 'merchant' },
             { label: 'Manage Menu',       icon: UtensilsCrossed, view: 'merchant_menu' },
             { label: 'Support & Tickets', icon: HelpCircle,      view: 'support' },
           ]} onNavigate={onSwitchView} />
-          {outlets.length > 0 && onAssignOutlet && (
+          {onAssignOutlet && (
             <OutletAssigner outlets={outlets} assignedOutlet={assignedOutlet} onAssign={onAssignOutlet} />
           )}
         </>
