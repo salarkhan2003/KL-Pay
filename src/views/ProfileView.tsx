@@ -2,8 +2,8 @@
 import { motion } from 'motion/react';
 import {
   Settings, Trophy, Flame, History, HelpCircle, LogOut, ChevronRight,
-  Phone, Check, ScanLine, ArrowUpRight, Shield, Store, Crown,
-  GraduationCap, BarChart2, UtensilsCrossed, Users, Wallet,
+  Phone, Check, ScanLine, Shield, Store, Crown,
+  GraduationCap, BarChart2, UtensilsCrossed, Users, Wallet, ArrowUpRight,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { cn } from '../utils';
@@ -158,7 +158,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ── MERCHANT profile ── */}
       {role === 'merchant' && (
         <>
-          {assignedOutlet && (
+          {assignedOutlet ? (
             <GlassCard className="p-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/5">
@@ -175,12 +175,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
               </div>
             </GlassCard>
+          ) : (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-amber-400 text-xs font-black">No outlet assigned yet</p>
+              <p className="text-white/30 text-[10px] mt-0.5">Select an outlet below to get started</p>
+            </div>
           )}
           <MenuList items={[
-            { label: 'Dashboard',           icon: BarChart2,        view: 'merchant' },
-            { label: 'Manage Menu',         icon: UtensilsCrossed,  view: 'merchant_menu' },
-            { label: 'Transaction History', icon: ArrowUpRight,     view: 'transactions' },
-            { label: 'Support & Tickets',   icon: HelpCircle,       view: 'support' },
+            { label: 'Dashboard',         icon: BarChart2,       view: 'merchant' },
+            { label: 'Manage Menu',       icon: UtensilsCrossed, view: 'merchant_menu' },
+            { label: 'Support & Tickets', icon: HelpCircle,      view: 'support' },
           ]} onNavigate={onSwitchView} />
           {outlets.length > 0 && onAssignOutlet && (
             <OutletAssigner outlets={outlets} assignedOutlet={assignedOutlet} onAssign={onAssignOutlet} />

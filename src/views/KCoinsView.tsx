@@ -1,11 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Flame, Gift, Star, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Trophy, Flame, Gift, Star, Zap, ArrowRight, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { UserProfile } from '../types';
 
 interface KCoinsViewProps {
   profile: UserProfile | null;
+  onBack?: () => void;
 }
 
 const REWARDS = [
@@ -22,7 +23,7 @@ const HOW_TO_EARN = [
   { label: 'Refer a friend', coins: '+25 K-Coins' },
 ];
 
-export const KCoinsView: React.FC<KCoinsViewProps> = ({ profile }) => {
+export const KCoinsView: React.FC<KCoinsViewProps> = ({ profile, onBack }) => {
   const coins = profile?.kCoins || 0;
   const streak = profile?.streak || 0;
   const progress = Math.min((coins % 100) / 100, 1);
@@ -34,7 +35,14 @@ export const KCoinsView: React.FC<KCoinsViewProps> = ({ profile }) => {
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <h2 className="text-display text-4xl font-black">K-Coins</h2>
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
+        <h2 className="text-display text-4xl font-black">K-Coins</h2>
+      </div>
 
       {/* Balance Card */}
       <div className="glass-frosted rounded-[32px] p-6 border border-white/10 relative overflow-hidden">

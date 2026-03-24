@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowUpRight, ShoppingBag, ScanLine, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ArrowUpRight, ShoppingBag, ScanLine, CheckCircle2, Clock, XCircle, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { Transaction } from '../types';
 import { cn } from '../utils';
 
 interface TransactionHistoryViewProps {
   transactions: Transaction[];
+  onBack?: () => void;
 }
 
-export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ transactions }) => {
+export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ transactions, onBack }) => {
   const [filter, setFilter] = useState<'all' | 'Food_Order' | 'Peer_to_Merchant_Pay'>('all');
 
   const filtered = transactions.filter(t => filter === 'all' || t.flow === filter);
@@ -18,7 +19,14 @@ export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ 
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-      <h2 className="text-display text-4xl font-black">Transactions</h2>
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
+        <h2 className="text-display text-4xl font-black">Transactions</h2>
+      </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4">

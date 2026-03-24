@@ -7,7 +7,7 @@ import {
   rowToOutlet, rowToMenuItem, rowToOrder, rowToTransaction, rowToSupportTicket,
 } from './supabase';
 import { saveUserProfile, signOutUser, getMerchantOutletByCode } from './auth';
-import { Trash2, UtensilsCrossed, LogOut } from 'lucide-react';
+import { Trash2, UtensilsCrossed, LogOut, Home, ShoppingBag, ShoppingCart, User, LayoutDashboard, ScanLine, ArrowUpRight } from 'lucide-react';
 import { UserProfile, Outlet, MenuItem, Order, OrderItem, SupportTicket, CartItem, Transaction } from './types';
 import { cn } from './utils';
 import { ClayButton } from './components/ClayButton';
@@ -49,6 +49,51 @@ async function ensureCanteensSeeded() {
     for (const o of SEED_OUTLETS) await upsertOutlet(o);
     for (const m of SEED_MENU) await upsertMenuItem(m);
   } catch (e) { console.warn('seed:', e); }
+}
+
+// ── Desktop sidebar navigation ────────────────────────────────────────────────
+function DesktopNav({ activeView, onViewChange, role, cartCount }: { activeView: string; onViewChange: (v: string) => void; role: string; cartCount: number }) {
+  const studentTabs = [
+    { id: 'home', icon: Home, label: 'Home' },
+    { id: 'direct_pay', icon: ScanLine, label: 'Pay' },
+    { id: 'orders', icon: ShoppingBag, label: 'Orders' },
+    { id: 'cart', icon: ShoppingCart, label: 'Cart', badge: cartCount },
+    { id: 'transactions', icon: ArrowUpRight, label: 'Transactions' },
+    { id: 'profile', icon: User, label: 'Profile' },
+  ];
+  const merchantTabs = [
+    { id: 'merchant', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'merchant_menu', icon: UtensilsCrossed, label: 'Menu' },
+    { id: 'profile', icon: User, label: 'Profile' },
+  ];
+  const adminTabs = [
+    { id: 'admin', icon: LayoutDashboard, label: 'Admin' },
+    { id: 'home', icon: Home, label: 'Browse' },
+    { id: 'transactions', icon: ArrowUpRight, label: 'Transactions' },
+    { id: 'profile', icon: User, label: 'Profile' },
+  ];
+  const tabs = role === 'admin' ? adminTabs : role === 'merchant' ? merchantTabs : studentTabs;
+  return (
+    <nav className="space-y-1">
+      {tabs.map(tab => {
+        const Icon = tab.icon;
+        const isActive = activeView === tab.id;
+        return (
+          <button key={tab.id} onClick={() => onViewChange(tab.id)}
+            className={cn('w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all relative',
+              isActive ? 'bg-klu-red text-white shadow-lg shadow-klu-red/20' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+            <Icon className="w-4 h-4 flex-shrink-0" />
+            <span>{tab.label}</span>
+            {(tab as any).badge > 0 && (
+              <span className="ml-auto w-5 h-5 bg-white text-klu-red rounded-full text-[10px] font-black flex items-center justify-center">
+                {(tab as any).badge > 9 ? '9+' : (tab as any).badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
 }
 
 export default function App() {
@@ -371,42 +416,73 @@ export default function App() {
     || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) || null : null);
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-crimson-dark relative pb-24 font-sans selection:bg-klu-red selection:text-white">
+    <div className="min-h-screen bg-crimson-dark font-sans selection:bg-klu-red selection:text-white">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[10%] right-[-20%] w-[80%] h-[80%] radial-glow opacity-10" />
         <div className="absolute bottom-[10%] left-[-20%] w-[80%] h-[80%] radial-glow opacity-10" />
       </div>
-      <DynamicIsland />
-      <header className="p-8 pt-16 flex items-center justify-between sticky top-0 z-50 bg-crimson-dark/60 backdrop-blur-xl">
-        <div>
-          <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
-          <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName || 'Guest'}</h1>
+
+      {/* Desktop layout: sidebar nav + content area */}
+      <div className="flex min-h-screen">
+        {/* Desktop sidebar */}
+        <aside className="hidden lg:flex flex-col w-64 fixed left-0 top-0 bottom-0 z-50 p-6 border-r border-white/5 bg-crimson-dark/80 backdrop-blur-xl">
+          <div className="mb-8">
+            <p className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">KL ONE</p>
+            <p className="text-white font-black text-lg truncate">{profile?.displayName || 'Guest'}</p>
+            <p className="text-white/30 text-xs truncate">{profile?.email}</p>
+          </div>
+          <DesktopNav activeView={view} onViewChange={setView} role={profile?.role || 'student'} cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)} />
+          <button onClick={logout} className="mt-auto flex items-center gap-3 p-3 rounded-2xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all">
+            <LogOut className="w-4 h-4" />
+            <span className="text-sm font-bold">Logout</span>
+          </button>
+        </aside>
+
+        {/* Main content */}
+        <div className="flex-1 lg:ml-64 flex flex-col">
+          {/* Mobile header */}
+          <header className="lg:hidden p-6 pt-14 flex items-center justify-between sticky top-0 z-50 bg-crimson-dark/60 backdrop-blur-xl">
+            <div>
+              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
+              <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName || 'Guest'}</h1>
+            </div>
+            <button onClick={logout} className="w-12 h-12 rounded-2xl glass-frosted flex items-center justify-center text-white/60 hover:text-klu-red transition-all active:scale-90">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </header>
+
+          {/* Desktop header */}
+          <header className="hidden lg:flex p-8 items-center justify-between border-b border-white/5">
+            <div>
+              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
+              <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName || 'Guest'}</h1>
+            </div>
+          </header>
+
+          <DynamicIsland />
+          <main className="flex-1 p-6 lg:p-10 max-w-3xl w-full mx-auto pb-28 lg:pb-10">
+            <AnimatePresence mode="wait">
+              {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
+              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} onBack={() => setView('home')} onAddToCart={addToCart} />}
+              {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
+              {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
+              {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
+              {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} />}
+              {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onBack={() => setView('merchant')} />}
+              {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} onBack={() => setView('profile')} />}
+              {view === 'kcoins' && <KCoinsView profile={profile} onBack={() => setView('profile')} />}
+              {view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} user={null} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} onBack={() => setView('home')} />}
+              {view === 'transactions' && <TransactionHistoryView transactions={transactions} onBack={() => setView('profile')} />}
+              {view === 'admin' && <AdminView allOrders={allOrders} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
+            </AnimatePresence>
+          </main>
         </div>
-        <button onClick={logout} className="w-12 h-12 rounded-2xl glass-frosted flex items-center justify-center text-white/60 hover:text-klu-red transition-all active:scale-90">
-          <LogOut className="w-5 h-5" />
-        </button>
-      </header>
-      <main className="p-6">
-        <AnimatePresence mode="wait">
-          {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
-          {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} onBack={() => setView('home')} onAddToCart={addToCart} />}
-          {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} />}
-          {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} />}
-          {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
-          {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} />}
-          {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} />}
-          {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} />}
-          {view === 'kcoins' && <KCoinsView profile={profile} />}
-          {view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} user={null} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} />}
-          {view === 'transactions' && <TransactionHistoryView transactions={transactions} />}
-          {view === 'admin' && <AdminView allOrders={allOrders} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
-        </AnimatePresence>
-      </main>
+      </div>
 
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-            className={cn('fixed bottom-24 left-6 right-6 p-4 rounded-2xl shadow-lg z-[100] text-center font-bold text-sm', toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')}>
+            className={cn('fixed bottom-24 left-6 right-6 lg:bottom-6 lg:left-auto lg:right-8 lg:w-80 p-4 rounded-2xl shadow-lg z-[100] text-center font-bold text-sm', toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')}>
             {toast.message}
           </motion.div>
         )}
@@ -431,7 +507,10 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Navigation activeView={view} onViewChange={setView} role={profile?.role || 'student'} cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)} />
+      {/* Mobile bottom nav */}
+      <div className="lg:hidden">
+        <Navigation activeView={view} onViewChange={setView} role={profile?.role || 'student'} cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)} />
+      </div>
     </div>
   );
 }

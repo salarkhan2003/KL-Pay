@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { HelpCircle, AlertCircle } from 'lucide-react';
+import { HelpCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
 import { cn } from '../utils';
@@ -9,9 +9,10 @@ import { SupportTicket } from '../types';
 interface SupportViewProps {
   tickets: SupportTicket[];
   onSubmitTicket: (subject: string, message: string) => Promise<void>;
+  onBack?: () => void;
 }
 
-export const SupportView: React.FC<SupportViewProps> = ({ tickets, onSubmitTicket }) => {
+export const SupportView: React.FC<SupportViewProps> = ({ tickets, onSubmitTicket, onBack }) => {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,7 +36,14 @@ export const SupportView: React.FC<SupportViewProps> = ({ tickets, onSubmitTicke
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <h2 className="text-2xl font-bold">Help Center</h2>
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
+        <h2 className="text-2xl font-bold">Help Center</h2>
+      </div>
       <GlassCard className="space-y-4">
         <h3 className="font-bold">Report an Issue</h3>
         <div className="space-y-3">

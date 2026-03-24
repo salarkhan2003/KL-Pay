@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Settings, Trash2, X, IndianRupee, Clock, Tag, Image, Upload, Loader2 } from 'lucide-react';
+import { Plus, Settings, Trash2, X, IndianRupee, Clock, Tag, Image, Upload, Loader2, ArrowLeft } from 'lucide-react';
 import { ClayButton } from '../components/ClayButton';
 import { cn } from '../utils';
 import { MenuItem } from '../types';
@@ -11,6 +11,7 @@ interface MerchantMenuViewProps {
   onToggleAvailability: (itemId: string, isAvailable: boolean) => void;
   onSaveItem: (item: Partial<MenuItem> & { name: string; price: number; category: string }) => Promise<void>;
   onDeleteItem: (itemId: string) => Promise<void>;
+  onBack?: () => void;
 }
 
 const CATEGORIES = ['Main', 'Snack', 'Breakfast', 'Beverage', 'Juice', 'Dessert'];
@@ -26,7 +27,7 @@ async function uploadFoodImage(file: File): Promise<string> {
 }
 
 export const MerchantMenuView: React.FC<MerchantMenuViewProps> = ({
-  menu, onToggleAvailability, onSaveItem, onDeleteItem
+  menu, onToggleAvailability, onSaveItem, onDeleteItem, onBack
 }) => {
   const [modal, setModal] = useState<Partial<MenuItem> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -68,9 +69,16 @@ export const MerchantMenuView: React.FC<MerchantMenuViewProps> = ({
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-display text-4xl font-black">Menu</h2>
-          <p className="text-white/30 text-xs font-bold mt-1">{menu.length} items</p>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <h2 className="text-display text-4xl font-black">Menu</h2>
+            <p className="text-white/30 text-xs font-bold mt-1">{menu.length} items</p>
+          </div>
         </div>
         <button onClick={openAdd}
           className="flex items-center gap-2 px-4 py-2.5 bg-klu-red rounded-2xl text-white text-xs font-black shadow-lg shadow-klu-red/30 active:scale-95 transition-all">

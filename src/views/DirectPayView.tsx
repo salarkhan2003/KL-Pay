@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { QrCode, ScanLine, IndianRupee, ArrowRight, AlertCircle, Loader2, Store, X } from 'lucide-react';
+import { QrCode, ScanLine, IndianRupee, ArrowRight, AlertCircle, Loader2, Store, X, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
 import { Outlet, UserProfile } from '../types';
@@ -11,11 +11,12 @@ interface DirectPayViewProps {
   profile: UserProfile | null;
   user: UserProfile | null;
   onSuccess: (amount: number, outletName: string) => void;
+  onBack?: () => void;
 }
 
 type Step = 'scan' | 'amount' | 'paying';
 
-export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, user, onSuccess }) => {
+export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, user, onSuccess, onBack }) => {
   const [step, setStep] = useState<Step>('scan');
   const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
   const [amount, setAmount] = useState('');
@@ -69,9 +70,16 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
       className="space-y-6"
     >
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-display text-4xl font-black">Pay</h2>
-          <p className="text-white/30 text-xs font-bold mt-1">Scan & pay at any KL One outlet</p>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <h2 className="text-display text-4xl font-black">Pay</h2>
+            <p className="text-white/30 text-xs font-bold mt-1">Scan & pay at any KL One outlet</p>
+          </div>
         </div>
         <div className="w-12 h-12 bg-klu-red/10 border border-klu-red/20 rounded-2xl flex items-center justify-center">
           <ScanLine className="w-6 h-6 text-klu-red" />
