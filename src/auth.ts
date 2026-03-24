@@ -49,34 +49,54 @@ export async function saveUserProfile(uid: string, email: string, phone: string,
   const isAdmin = email.toLowerCase() === 'salarkhanpatan7861@gmail.com';
   const studentId = extras.studentId || extractStudentId(email) || undefined;
 
-  // Check existing
-  const { data: existing } = await supabase.from('profiles').select('*').eq('id', uid).single();
+  try {
+    // Check existing
+    const { data: existing, error: fetchErr } = await supabase.from('profiles').select('*').eq('id', uid).single();
 
-  if (existing) {
-    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
-    if (phone && existing.phone !== phone) updates.phone = phone;
-    if (isAdmin && existing.role !== 'admin') updates.role = 'admin';
-    if (extras.displayName && !existing.display_name) updates.display_name = extras.displayName;
-    if (studentId && !existing.student_id) updates.student_id = studentId;
-    if (extras.gender && !existing.gender) updates.gender = extras.gender;
-    if (extras.hostel && !existing.hostel) updates.hostel = extras.hostel;
-    if (Object.keys(updates).length > 1) {
-      await supabase.from('profiles').update(updates).eq('id', uid);
+    // If table missing (PGRST205) just return a local profile — don't crash
+    if (fetchErr && (fetchErr.code === 'PGRST205' || fetchErr.message?.includes('schema cache'))) {
+      return buildLocalProfile(uid, email, phone, extras, isAdmin, studentId);
     }
-    return rowToProfile({ ...existing, ...updates, id: uid, email });
-  }
 
-  const newRow = {
-    id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0],
-    role: isAdmin ? 'admin' : 'student', phone: phone || null,
-    k_coins: 0, streak: 0, block: 'CSE',
-    ...(studentId ? { student_id: studentId } : {}),
-    ...(extras.gender ? { gender: extras.gender } : {}),
-    ...(extras.hostel ? { hostel: extras.hostel } : {}),
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    if (existing) {
+      const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (phone && existing.phone !== phone) updates.phone = phone;
+      if (isAdmin && existing.role !== 'admin') updates.role = 'admin';
+      if (extras.displayName && !existing.display_name) updates.display_name = extras.displayName;
+      if (studentId && !existing.student_id) updates.student_id = studentId;
+      if (extras.gender && !existing.gender) updates.gender = extras.gender;
+      if (extras.hostel && !existing.hostel) updates.hostel = extras.hostel;
+      if (Object.keys(updates).length > 1) {
+        await supabase.from('profiles').update(updates).eq('id', uid);
+      }
+      return rowToProfile({ ...existing, ...updates, id: uid, email });
+    }
+
+    const newRow = {
+      id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0],
+      role: isAdmin ? 'admin' : 'student', phone: phone || null,
+      k_coins: 0, streak: 0, block: 'CSE',
+      ...(studentId ? { student_id: studentId } : {}),
+      ...(extras.gender ? { gender: extras.gender } : {}),
+      ...(extras.hostel ? { hostel: extras.hostel } : {}),
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    await upsertProfile(newRow);
+    return rowToProfile(newRow);
+  } catch (e: any) {
+    // Any unexpected error — return a local profile so the app still loads
+    console.warn('saveUserProfile fallback:', e?.message);
+    return buildLocalProfile(uid, email, phone, extras, isAdmin, studentId);
+  }
+}
+
+function buildLocalProfile(uid: string, email: string, phone: string, extras: ProfileExtras, isAdmin: boolean, studentId?: string): UserProfile {
+  return {
+    uid, email, displayName: extras.displayName || email.split('@')[0],
+    role: isAdmin ? 'admin' : 'student', phone: phone || '',
+    kCoins: 0, streak: 0, block: 'CSE',
+    studentId, gender: extras.gender, hostel: extras.hostel,
   };
-  await upsertProfile(newRow);
-  return rowToProfile(newRow);
 }
 
 function rowToProfile(r: any): UserProfile {

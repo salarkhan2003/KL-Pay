@@ -149,16 +149,22 @@ export default function App() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Hard timeout — if Supabase doesn't respond in 5s, just show the app
+    const timeout = setTimeout(() => setLoading(false), 5000);
+
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        try {
-          const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
-          setProfile(p);
-          if (p.role === 'merchant') setView('merchant');
-          else if (p.role === 'admin') setView('admin');
-        } catch (e) { console.warn('Profile load:', e); }
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          try {
+            const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
+            setProfile(p);
+            if (p.role === 'merchant') setView('merchant');
+            else if (p.role === 'admin') setView('admin');
+          } catch (e) { console.warn('Profile load:', e); }
+        }
+      } catch (e) { console.warn('getSession:', e); }
+      clearTimeout(timeout);
       setLoading(false);
     })();
 
