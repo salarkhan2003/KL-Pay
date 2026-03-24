@@ -434,31 +434,6 @@ export default function App() {
     </div>
   );
 
-  if (dbMissing) return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-crimson-dark p-8 text-center">
-      <div className="w-20 h-20 rounded-[28px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
-        <UtensilsCrossed className="w-10 h-10 text-amber-400" />
-      </div>
-      <h1 className="text-display text-3xl font-black text-white mb-2">Database Setup Required</h1>
-      <p className="text-white/40 text-sm mb-6 max-w-sm">
-        The Supabase tables don't exist yet. Run the SQL migration to create them.
-      </p>
-      <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl p-4 text-left mb-6">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Steps</p>
-        <ol className="space-y-2 text-sm text-white/60">
-          <li className="flex gap-2"><span className="text-klu-red font-black">1.</span> Open <span className="text-white font-bold">Supabase Dashboard</span></li>
-          <li className="flex gap-2"><span className="text-klu-red font-black">2.</span> Go to <span className="text-white font-bold">SQL Editor → New Query</span></li>
-          <li className="flex gap-2"><span className="text-klu-red font-black">3.</span> Paste & run <span className="text-white font-bold">scripts/create-tables.sql</span></li>
-          <li className="flex gap-2"><span className="text-klu-red font-black">4.</span> Refresh this page</li>
-        </ol>
-      </div>
-      <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer"
-        className="px-6 py-3 bg-klu-red rounded-2xl text-white font-black text-sm shadow-lg shadow-klu-red/30">
-        Open Supabase Dashboard →
-      </a>
-    </div>
-  );
-
   if (!profile && !isSkipped) return (
     <LoginPage
       onSkip={() => setIsSkipped(true)}
@@ -519,6 +494,20 @@ export default function App() {
           </header>
 
           <DynamicIsland />
+          {/* DB missing banner — app still loads, just shows a warning */}
+          {dbMissing && (
+            <div className="mx-6 lg:mx-10 mt-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
+              <span className="text-amber-400 text-lg">⚠️</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-amber-400 text-xs font-black">Database tables missing</p>
+                <p className="text-white/30 text-[10px]">Run <span className="text-white font-bold">scripts/create-tables.sql</span> in Supabase SQL Editor, then refresh.</p>
+              </div>
+              <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer"
+                className="text-[10px] font-black text-amber-400 border border-amber-500/30 px-2 py-1 rounded-lg whitespace-nowrap">
+                Open →
+              </a>
+            </div>
+          )}
           <main className="flex-1 p-6 lg:p-10 max-w-3xl w-full mx-auto pb-28 lg:pb-10">
             <AnimatePresence mode="wait">
               {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}

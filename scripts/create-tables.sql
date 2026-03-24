@@ -110,51 +110,78 @@ create table if not exists public.support_tickets (
 );
 
 -- ── Row Level Security ────────────────────────────────────
-alter table public.profiles       enable row level security;
-alter table public.outlets        enable row level security;
-alter table public.menu_items     enable row level security;
-alter table public.orders         enable row level security;
-alter table public.transactions   enable row level security;
+alter table public.profiles        enable row level security;
+alter table public.outlets         enable row level security;
+alter table public.menu_items      enable row level security;
+alter table public.orders          enable row level security;
+alter table public.transactions    enable row level security;
 alter table public.support_tickets enable row level security;
 
--- profiles: owner can read/write their own; all authenticated can read
+-- Drop existing policies first so re-runs don't error
+do $$ begin
+  -- profiles
+  drop policy if exists "profiles_select" on public.profiles;
+  drop policy if exists "profiles_insert" on public.profiles;
+  drop policy if exists "profiles_update" on public.profiles;
+  -- outlets
+  drop policy if exists "outlets_select" on public.outlets;
+  drop policy if exists "outlets_insert" on public.outlets;
+  drop policy if exists "outlets_update" on public.outlets;
+  drop policy if exists "outlets_delete" on public.outlets;
+  -- menu_items
+  drop policy if exists "menu_select" on public.menu_items;
+  drop policy if exists "menu_insert" on public.menu_items;
+  drop policy if exists "menu_update" on public.menu_items;
+  drop policy if exists "menu_delete" on public.menu_items;
+  -- orders
+  drop policy if exists "orders_select" on public.orders;
+  drop policy if exists "orders_insert" on public.orders;
+  drop policy if exists "orders_update" on public.orders;
+  drop policy if exists "orders_delete" on public.orders;
+  -- transactions
+  drop policy if exists "tx_select" on public.transactions;
+  drop policy if exists "tx_insert" on public.transactions;
+  drop policy if exists "tx_update" on public.transactions;
+  -- support_tickets
+  drop policy if exists "support_select" on public.support_tickets;
+  drop policy if exists "support_insert" on public.support_tickets;
+  drop policy if exists "support_update" on public.support_tickets;
+end $$;
+
 create policy "profiles_select" on public.profiles for select using (true);
 create policy "profiles_insert" on public.profiles for insert with check (true);
 create policy "profiles_update" on public.profiles for update using (true);
 
--- outlets: public read; authenticated write
-create policy "outlets_select"  on public.outlets for select using (true);
-create policy "outlets_insert"  on public.outlets for insert with check (true);
-create policy "outlets_update"  on public.outlets for update using (true);
-create policy "outlets_delete"  on public.outlets for delete using (true);
+create policy "outlets_select" on public.outlets for select using (true);
+create policy "outlets_insert" on public.outlets for insert with check (true);
+create policy "outlets_update" on public.outlets for update using (true);
+create policy "outlets_delete" on public.outlets for delete using (true);
 
--- menu_items: public read; authenticated write
 create policy "menu_select" on public.menu_items for select using (true);
 create policy "menu_insert" on public.menu_items for insert with check (true);
 create policy "menu_update" on public.menu_items for update using (true);
 create policy "menu_delete" on public.menu_items for delete using (true);
 
--- orders: authenticated read/write
 create policy "orders_select" on public.orders for select using (true);
 create policy "orders_insert" on public.orders for insert with check (true);
 create policy "orders_update" on public.orders for update using (true);
 create policy "orders_delete" on public.orders for delete using (true);
 
--- transactions: authenticated read/write
 create policy "tx_select" on public.transactions for select using (true);
 create policy "tx_insert" on public.transactions for insert with check (true);
 create policy "tx_update" on public.transactions for update using (true);
 
--- support_tickets: authenticated read/write
 create policy "support_select" on public.support_tickets for select using (true);
 create policy "support_insert" on public.support_tickets for insert with check (true);
 create policy "support_update" on public.support_tickets for update using (true);
 
--- ── Enable Realtime ───────────────────────────────────────
-alter publication supabase_realtime add table public.outlets;
-alter publication supabase_realtime add table public.menu_items;
-alter publication supabase_realtime add table public.orders;
-alter publication supabase_realtime add table public.transactions;
+-- ── Enable Realtime (safe to run multiple times) ──────────
+do $$ begin
+  begin alter publication supabase_realtime add table public.outlets;      exception when others then null; end;
+  begin alter publication supabase_realtime add table public.menu_items;   exception when others then null; end;
+  begin alter publication supabase_realtime add table public.orders;       exception when others then null; end;
+  begin alter publication supabase_realtime add table public.transactions; exception when others then null; end;
+end $$;
 
 -- ── Seed data ─────────────────────────────────────────────
 insert into public.outlets (id, name, description, image_url, is_open, merchant_id, block_name, category, upi_id, timings, rating)
