@@ -4,10 +4,9 @@ import { Settings, Trophy, Flame, History, CreditCard, HelpCircle, LogOut, Chevr
 import { GlassCard } from '../components/GlassCard';
 import { cn } from '../utils';
 import { UserProfile, Outlet } from '../types';
-import { User } from 'firebase/auth';
 interface ProfileViewProps {
   profile: UserProfile | null;
-  user: User | null;
+  user: null;
   onLogout: () => void;
   onUpdateProfile: (data: Partial<UserProfile>) => Promise<void>;
   onSwitchView: (view: any) => void;

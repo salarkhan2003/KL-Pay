@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, Mail, Phone, ArrowRight, AlertCircle, Loader2,
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
-  CheckCircle2, RefreshCw, User, Hash, Home, ChevronDown,
+  CheckCircle2, RefreshCw, User, Hash, Home,
 } from 'lucide-react';
 import {
   sendMagicLink, checkSession, getAuthErrorMessage, isKluEmail,
@@ -16,10 +16,13 @@ import { cn } from '../utils';
 const DEV_PIN = 'KLU2026';
 const ADMIN_EMAIL = 'salarkhanpatan7861@gmail.com';
 
-const HOSTELS = [
-  'Tulip Hostel',
-  'Day Scholar',
-  'Other',
+const HOSTELS: { name: string; image?: string }[] = [
+  {
+    name: 'Tulip Hostel',
+    image: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/tulip-hostel.jpeg',
+  },
+  { name: 'Day Scholar' },
+  { name: 'Other' },
 ];
 
 const GENDERS = [
@@ -302,20 +305,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                   {/* Hostel */}
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2 pl-1">Hostel</p>
-                    <div className="relative">
-                      <Home className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none z-10" />
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none z-10" />
-                      <select
-                        className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white appearance-none cursor-pointer"
-                        value={setupHostel}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSetupHostel(e.target.value)}
-                        style={{ colorScheme: 'dark' }}
-                      >
-                        <option value="" disabled className="bg-gray-900">Select your hostel</option>
-                        {HOSTELS.map(h => (
-                          <option key={h} value={h} className="bg-gray-900">{h}</option>
-                        ))}
-                      </select>
+                    <div className="space-y-2">
+                      {HOSTELS.map(h => (
+                        <button
+                          key={h.name}
+                          onClick={() => setSetupHostel(h.name)}
+                          className={cn(
+                            'w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left',
+                            setupHostel === h.name
+                              ? 'bg-klu-red/10 border-klu-red text-white'
+                              : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'
+                          )}
+                        >
+                          {h.image && (
+                            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 border border-white/10">
+                              <img src={h.image} alt={h.name} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          {!h.image && (
+                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                              <Home className="w-4 h-4 text-white/20" />
+                            </div>
+                          )}
+                          <span className="font-black text-sm">{h.name}</span>
+                          {setupHostel === h.name && (
+                            <CheckCircle2 className="w-4 h-4 text-klu-red ml-auto flex-shrink-0" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>

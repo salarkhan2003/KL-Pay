@@ -14,8 +14,8 @@ interface CartViewProps {
 
 export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRemove, onCheckout }) => {
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const fee = 1;
-  const total = subtotal + fee;
+  const fee = 2.5;
+  const total = Math.round((subtotal + fee) * 100) / 100;
 
   return (
     <motion.div
