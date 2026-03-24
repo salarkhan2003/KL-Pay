@@ -1,13 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, Mail, Phone, ArrowRight, AlertCircle, Loader2,
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
-  CheckCircle2, User, Hash, Home, Lock,
+  CheckCircle2, User, Hash, Home, Lock, Timer,
 } from 'lucide-react';
 import {
   registerUser, loginUser, getAuthErrorMessage,
-  ProfileExtras, getMerchantOutletByCode,
+  ProfileExtras,
 } from '../auth';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
@@ -48,6 +48,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [showLoginPw, setShowLoginPw] = useState(false);
+  const [loginCooldown, setLoginCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Register fields
   const [regEmail, setRegEmail] = useState('');
@@ -75,7 +77,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   const [devLoading, setDevLoading] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
+  const startCooldown = useCallback((seconds: number) => {
+    setLoginCooldown(seconds);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setLoginCooldown(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current!); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
   const handleLogin = async () => {
+    if (loginCooldown > 0) return;
     setLoginError('');
     if (!loginEmail || !loginPassword) { setLoginError('Enter your email and password.'); return; }
     setLoginLoading(true);
@@ -83,7 +97,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
       const profile = await loginUser(loginEmail.trim(), loginPassword);
       await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
     } catch (err: any) {
-      setLoginError(getAuthErrorMessage(err));
+      const msg = getAuthErrorMessage(err);
+      setLoginError(msg);
+      if (msg.includes('Too many attempts')) startCooldown(30);
     } finally {
       setLoginLoading(false);
     }
@@ -237,8 +253,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                         show={showLoginPw} onToggle={() => setShowLoginPw(v => !v)}
                         onChange={v => setLoginPassword(v)} onEnter={handleLogin} />
                       {loginError && <ErrorBox message={loginError} />}
-                      <ClayButton onClick={handleLogin} className="w-full h-14" disabled={loginLoading}>
-                        {loginLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Sign In'}
+                      <ClayButton onClick={handleLogin} className="w-full h-14" disabled={loginLoading || loginCooldown > 0}>
+                        {loginLoading
+                          ? <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                          : loginCooldown > 0
+                            ? <span className="flex items-center justify-center gap-2"><Timer className="w-4 h-4" /> Retry in {loginCooldown}s</span>
+                            : 'Sign In'}
                       </ClayButton>
                     </motion.div>
                   )}
