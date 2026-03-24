@@ -4,7 +4,7 @@ import {
   ChefHat, CheckCircle2, Phone, Zap, ShoppingBag, ScanLine, Bell, Volume2,
   BarChart2, TrendingUp, Package, Clock, Plus, Settings, Trash2, X,
   IndianRupee, Tag, Image, Upload, Loader2, Store, ToggleLeft, ToggleRight,
-  UtensilsCrossed, Star, MapPin, Edit2, Eye, EyeOff,
+  UtensilsCrossed, Star, MapPin, Edit2, CreditCard, Link,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
@@ -24,10 +24,14 @@ interface MerchantViewProps {
   onDeleteItem?: (itemId: string) => Promise<void>;
   onToggleAvailability?: (itemId: string, isAvailable: boolean) => void;
   onSaveOutlet?: (data: Partial<Outlet> & { name: string }) => Promise<void>;
+  onAssignOutlet?: (outletId: string) => Promise<void>;
 }
 
 const CATEGORIES = ['Main', 'Snack', 'Breakfast', 'Beverage', 'Juice', 'Dessert'];
+const OUTLET_CATS = ['Meals', 'Snacks', 'Breakfast', 'Beverages', 'Juice', 'Multi'];
+const BLOCKS = ['Tulip Hostel', 'Himalaya Hostel', 'Kanchan Ganga Hostel', 'CSE', 'EEE', 'MECH', 'CIVIL', 'R&D', 'FED', 'SDC'];
 const EMPTY_ITEM: Partial<MenuItem> = { name: '', price: 0, category: 'Main', prepTime: '10m', description: '', imageUrl: '', isAvailable: true };
+const EMPTY_OUTLET_FORM = { name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', imageUrl: '', timings: '8am – 9pm', isOpen: true };
 
 async function uploadFoodImage(file: File): Promise<string> {
   const ext = file.name.split('.').pop() || 'jpg';
@@ -42,7 +46,7 @@ type DashTab = 'orders' | 'menu' | 'analytics' | 'outlet';
 
 export const MerchantView: React.FC<MerchantViewProps> = ({
   orders, outlets, merchantOutlet, onUpdateStatus, onSwitchView,
-  menu = [], onSaveItem, onDeleteItem, onToggleAvailability, onSaveOutlet,
+  menu = [], onSaveItem, onDeleteItem, onToggleAvailability, onSaveOutlet, onAssignOutlet,
 }) => {
   const [tab, setTab] = useState<DashTab>('orders');
   const [alerts, setAlerts] = useState<PaymentAlertPayload[]>([]);
@@ -56,22 +60,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
   useMerchantSocket({ outletId: merchantOutlet?.id || null, onAlert: handleAlert });
 
   if (!merchantOutlet) {
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center py-24 gap-6 text-center">
-        <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center">
-          <ChefHat className="w-10 h-10 text-white/20" />
-        </div>
-        <div>
-          <p className="font-black text-lg">No outlet assigned</p>
-          <p className="text-white/30 text-sm mt-1">Go to Profile → Assign Outlet</p>
-        </div>
-        <button onClick={() => onSwitchView('profile')}
-          className="px-6 py-3 bg-klu-red/10 border border-klu-red/30 rounded-2xl text-klu-red text-sm font-black">
-          Go to Profile
-        </button>
-      </motion.div>
-    );
+    return <NoOutletSetup outlets={outlets} onSaveOutlet={onSaveOutlet} onAssignOutlet={onAssignOutlet} />;
   }
 
   const activeOrders = orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled');
@@ -179,6 +168,174 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         {tab === 'analytics' && <AnalyticsTab key="analytics" orders={orders} todaySales={todaySales} totalSales={totalSales} avgOrder={avgOrder} />}
         {tab === 'outlet' && <OutletTab key="outlet" outlet={merchantOutlet} onSave={onSaveOutlet} />}
       </AnimatePresence>
+    </motion.div>
+  );
+};
+
+// ── Shared field wrapper ──────────────────────────────────────────────────────
+const MField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
+  <div>
+    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">{icon}{label}</p>
+    {children}
+  </div>
+);
+
+// ── No Outlet Setup ───────────────────────────────────────────────────────────
+const NoOutletSetup: React.FC<{
+  outlets: Outlet[];
+  onSaveOutlet?: (data: Partial<Outlet> & { name: string }) => Promise<void>;
+  onAssignOutlet?: (outletId: string) => Promise<void>;
+}> = ({ outlets, onSaveOutlet, onAssignOutlet }) => {
+  const [mode, setMode] = useState<'choose' | 'create' | 'assign'>('choose');
+  const [form, setForm] = useState({ ...EMPTY_OUTLET_FORM });
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async () => {
+    if (!form.name || !onSaveOutlet) return;
+    setSaving(true);
+    await onSaveOutlet({ ...form });
+    setSaving(false);
+  };
+
+  const handleAssign = async (id: string) => {
+    if (!onAssignOutlet) return;
+    await onAssignOutlet(id);
+  };
+
+  if (mode === 'create') return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setMode('choose')} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white">
+          <X className="w-4 h-4" />
+        </button>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">New Outlet</p>
+          <h2 className="text-display text-2xl font-black">Create Outlet</h2>
+        </div>
+      </div>
+
+      <GlassCard className="p-5 space-y-4">
+        <MField label="Outlet Name" icon={<Store className="w-4 h-4" />}>
+          <input className="input-field" placeholder="e.g. Friend's Canteen" value={form.name}
+            onChange={e => setForm(p => ({ ...p, name: e.target.value }))} autoFocus />
+        </MField>
+        <MField label="Description" icon={<Tag className="w-4 h-4" />}>
+          <input className="input-field" placeholder="Short description" value={form.description}
+            onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+        </MField>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">
+            <MapPin className="w-4 h-4" /> Block / Location
+          </p>
+          <select className="input-field" value={form.blockName}
+            onChange={e => setForm(p => ({ ...p, blockName: e.target.value }))}>
+            {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <MField label="Timings" icon={<Clock className="w-4 h-4" />}>
+            <input className="input-field" placeholder="8am – 9pm" value={form.timings}
+              onChange={e => setForm(p => ({ ...p, timings: e.target.value }))} />
+          </MField>
+          <MField label="UPI ID" icon={<CreditCard className="w-4 h-4" />}>
+            <input className="input-field" placeholder="merchant@okaxis" value={form.upiId}
+              onChange={e => setForm(p => ({ ...p, upiId: e.target.value }))} />
+          </MField>
+        </div>
+        <MField label="Image URL (optional)" icon={<Link className="w-4 h-4" />}>
+          <input className="input-field" placeholder="https://..." value={form.imageUrl}
+            onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))} />
+        </MField>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Category</p>
+          <div className="flex flex-wrap gap-2">
+            {OUTLET_CATS.map(cat => (
+              <button key={cat} onClick={() => setForm(p => ({ ...p, category: cat }))}
+                className={cn('px-3 py-1.5 rounded-full text-xs font-black border transition-all',
+                  form.category === cat ? 'bg-klu-red border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/40')}>
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </GlassCard>
+
+      <ClayButton onClick={handleCreate} className="w-full h-12" disabled={saving || !form.name}>
+        {saving ? 'Creating...' : 'Create & Assign Outlet'}
+      </ClayButton>
+    </motion.div>
+  );
+
+  if (mode === 'assign') return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setMode('choose')} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white">
+          <X className="w-4 h-4" />
+        </button>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">Assign Outlet</p>
+          <h2 className="text-display text-2xl font-black">Select Outlet</h2>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {outlets.length === 0 ? (
+          <div className="text-center py-12 glass-frosted rounded-[24px] border border-white/10">
+            <Store className="w-10 h-10 text-white/10 mx-auto mb-3" />
+            <p className="text-white/30 text-sm font-bold">No outlets available</p>
+            <p className="text-white/20 text-xs mt-1">Create one first</p>
+          </div>
+        ) : outlets.map(outlet => (
+          <button key={outlet.id} onClick={() => handleAssign(outlet.id)}
+            className="w-full flex items-center gap-3 p-4 glass-frosted rounded-[20px] border border-white/10 hover:border-klu-red/40 active:scale-[0.98] transition-all text-left">
+            <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
+              <img src={outlet.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=100'}
+                className="w-full h-full object-cover" referrerPolicy="no-referrer" alt="" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm truncate">{outlet.name}</p>
+              <p className="text-xs text-white/30">{outlet.blockName} · {outlet.category}</p>
+            </div>
+            <div className={cn('w-2 h-2 rounded-full flex-shrink-0', outlet.isOpen ? 'bg-emerald-400' : 'bg-red-400')} />
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  // Default: choose mode
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="text-center pt-8">
+        <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+          <ChefHat className="w-10 h-10 text-white/20" />
+        </div>
+        <h2 className="text-display text-2xl font-black">No Outlet Assigned</h2>
+        <p className="text-white/30 text-sm mt-1">Create a new outlet or assign an existing one</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <button onClick={() => setMode('create')}
+          className="flex items-center gap-4 p-5 glass-frosted rounded-[24px] border border-klu-red/20 hover:border-klu-red/50 active:scale-[0.98] transition-all text-left">
+          <div className="w-12 h-12 rounded-2xl bg-klu-red/10 border border-klu-red/20 flex items-center justify-center flex-shrink-0">
+            <Plus className="w-6 h-6 text-klu-red" />
+          </div>
+          <div>
+            <p className="font-black text-sm">Create New Outlet</p>
+            <p className="text-xs text-white/30 mt-0.5">Set up your canteen from scratch</p>
+          </div>
+        </button>
+        {outlets.length > 0 && (
+          <button onClick={() => setMode('assign')}
+            className="flex items-center gap-4 p-5 glass-frosted rounded-[24px] border border-blue-500/20 hover:border-blue-500/40 active:scale-[0.98] transition-all text-left">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Store className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <p className="font-black text-sm">Assign Existing Outlet</p>
+              <p className="text-xs text-white/30 mt-0.5">{outlets.length} outlet{outlets.length !== 1 ? 's' : ''} available</p>
+            </div>
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 };
@@ -574,11 +731,3 @@ const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { 
     </motion.div>
   );
 };
-
-// ── Shared field wrapper ──────────────────────────────────────────────────────
-const MField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
-  <div>
-    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">{icon}{label}</p>
-    {children}
-  </div>
-);

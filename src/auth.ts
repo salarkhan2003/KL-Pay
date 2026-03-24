@@ -50,41 +50,38 @@ export async function saveUserProfile(uid: string, email: string, phone: string,
   const studentId = extras.studentId || extractStudentId(email) || undefined;
 
   try {
-    // Check existing
-    const { data: existing, error: fetchErr } = await supabase.from('profiles').select('*').eq('id', uid).single();
+    // First try a fast select — if row exists, return it (avoids unnecessary writes)
+    const { data: existing, error: fetchErr } = await supabase
+      .from('profiles').select('*').eq('id', uid).maybeSingle();
 
-    // If table missing (PGRST205) just return a local profile — don't crash
-    if (fetchErr && (fetchErr.code === 'PGRST205' || fetchErr.message?.includes('schema cache'))) {
+    if (fetchErr && (fetchErr.code === 'PGRST205' || fetchErr.message?.includes('schema cache') || fetchErr.code === '42P01')) {
       return buildLocalProfile(uid, email, phone, extras, isAdmin, studentId);
     }
 
     if (existing) {
-      const updates: Record<string, any> = { updated_at: new Date().toISOString() };
-      if (phone && existing.phone !== phone) updates.phone = phone;
-      if (isAdmin && existing.role !== 'admin') updates.role = 'admin';
-      if (extras.displayName && !existing.display_name) updates.display_name = extras.displayName;
-      if (studentId && !existing.student_id) updates.student_id = studentId;
-      if (extras.gender && !existing.gender) updates.gender = extras.gender;
-      if (extras.hostel && !existing.hostel) updates.hostel = extras.hostel;
-      if (Object.keys(updates).length > 1) {
-        await supabase.from('profiles').update(updates).eq('id', uid);
+      // Only patch fields that need updating (role promotion, missing phone)
+      const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (isAdmin && existing.role !== 'admin') patch.role = 'admin';
+      if (phone && !existing.phone) patch.phone = phone;
+      if (Object.keys(patch).length > 1) {
+        await supabase.from('profiles').update(patch).eq('id', uid);
       }
-      return rowToProfile({ ...existing, ...updates, id: uid, email });
+      return rowToProfile({ ...existing, ...patch });
     }
 
+    // New user — insert
     const newRow = {
-      id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0],
-      role: isAdmin ? 'admin' : 'student', phone: phone || null,
-      k_coins: 0, streak: 0, block: 'CSE',
-      ...(studentId ? { student_id: studentId } : {}),
-      ...(extras.gender ? { gender: extras.gender } : {}),
-      ...(extras.hostel ? { hostel: extras.hostel } : {}),
+      id: uid, email: email.toLowerCase(),
+      display_name: extras.displayName || email.split('@')[0],
+      role: isAdmin ? 'admin' : 'student',
+      phone: phone || null, k_coins: 0, streak: 0, block: 'CSE',
+      student_id: studentId || null, gender: extras.gender || null, hostel: extras.hostel || null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
-    await upsertProfile(newRow);
+    const { error: insertErr } = await supabase.from('profiles').insert(newRow);
+    if (insertErr && insertErr.code !== '23505') console.warn('profile insert:', insertErr.message);
     return rowToProfile(newRow);
   } catch (e: any) {
-    // Any unexpected error — return a local profile so the app still loads
     console.warn('saveUserProfile fallback:', e?.message);
     return buildLocalProfile(uid, email, phone, extras, isAdmin, studentId);
   }

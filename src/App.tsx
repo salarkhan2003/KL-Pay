@@ -149,13 +149,20 @@ export default function App() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Hard timeout — if Supabase doesn't respond in 5s, just show the app
-    const timeout = setTimeout(() => setLoading(false), 5000);
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; setLoading(false); } };
+
+    // Hard timeout — show app in 3s no matter what
+    const timeout = setTimeout(finish, 3000);
+
+    // Track if getSession already handled a user so onAuthStateChange doesn't double-fire
+    let sessionHandled = false;
 
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
+          sessionHandled = true;
           try {
             const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
             setProfile(p);
@@ -165,17 +172,19 @@ export default function App() {
         }
       } catch (e) { console.warn('getSession:', e); }
       clearTimeout(timeout);
-      setLoading(false);
+      finish();
     })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
+        if (sessionHandled) { sessionHandled = false; return; } // skip duplicate
         try {
           const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
           setProfile(p); setIsSkipped(false);
           if (p.role === 'merchant') setView('merchant');
           else if (p.role === 'admin') setView('admin');
         } catch (e) { console.warn('Profile save:', e); }
+        finish();
       } else if (event === 'SIGNED_OUT') {
         setProfile(null); setIsSkipped(false); setView('home'); setCart([]);
       }
@@ -233,7 +242,6 @@ export default function App() {
     const loadOutlets = async () => {
       const { data, error } = await supabase.from('outlets').select('*');
       if (error) {
-        // Table doesn't exist — show setup banner, don't crash
         if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
           setDbMissing(true);
         }
@@ -243,9 +251,12 @@ export default function App() {
       if (data && data.length > 0) {
         setOutlets(data.map(rowToOutlet));
       } else {
-        await ensureCanteensSeeded();
-        const { data: seeded } = await supabase.from('outlets').select('*');
-        if (seeded) setOutlets(seeded.map(rowToOutlet));
+        // Only seed when DB is genuinely empty — fire-and-forget, don't block UI
+        ensureCanteensSeeded().then(() => {
+          supabase.from('outlets').select('*').then(({ data: seeded }) => {
+            if (seeded) setOutlets(seeded.map(rowToOutlet));
+          });
+        });
       }
     };
     loadOutlets();
@@ -406,6 +417,10 @@ export default function App() {
   const saveOutlet = async (data: Partial<Outlet> & { name: string }) => {
     const id = data.id || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
     await upsertOutlet({ id, name: data.name, description: data.description || '', image_url: data.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400', is_open: data.isOpen ?? true, merchant_id: data.merchantId || profile?.uid || '', block_name: data.blockName || 'CSE', category: data.category || 'Meals', upi_id: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0 });
+    // If merchant is creating a new outlet and has no outlet assigned yet, auto-assign it
+    if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
+      await assignOutlet(id);
+    }
     showToast(data.id ? 'Outlet updated' : 'Outlet added');
   };
 
@@ -521,7 +536,7 @@ export default function App() {
               {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
               {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
               {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
-              {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} />}
+              {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} onAssignOutlet={assignOutlet} />}
               {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onBack={() => setView('merchant')} />}
               {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} onBack={() => setView('profile')} />}
               {view === 'kcoins' && <KCoinsView profile={profile} onBack={() => setView('profile')} />}

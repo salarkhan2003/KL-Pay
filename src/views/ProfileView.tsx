@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import {
   Settings, Trophy, Flame, History, HelpCircle, LogOut, ChevronRight,
   Phone, Check, ScanLine, Shield, Store, Crown,
-  GraduationCap, BarChart2, UtensilsCrossed, Users, Wallet, ArrowUpRight,
+  GraduationCap, BarChart2, UtensilsCrossed, Users, ArrowUpRight,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { cn } from '../utils';
@@ -195,18 +195,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ── ADMIN profile ── */}
       {role === 'admin' && (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <GlassCard className="p-3 flex flex-col items-center text-center">
-              <Users className="w-5 h-5 text-amber-400 mb-1" />
-              <p className="text-lg font-black">{outlets.length}</p>
-              <p className="text-[9px] font-black uppercase text-white/30">Outlets</p>
-            </GlassCard>
-            <GlassCard className="p-3 flex flex-col items-center text-center">
-              <Wallet className="w-5 h-5 text-emerald-400 mb-1" />
-              <p className="text-lg font-black">{profile?.kCoins || 0}</p>
-              <p className="text-[9px] font-black uppercase text-white/30">K-Coins</p>
-            </GlassCard>
-          </div>
+          <GlassCard className="p-3 flex flex-col items-center text-center">
+            <Users className="w-5 h-5 text-amber-400 mb-1" />
+            <p className="text-lg font-black">{outlets.length}</p>
+            <p className="text-[9px] font-black uppercase text-white/30">Outlets</p>
+          </GlassCard>
           <MenuList items={[
             { label: 'Admin Dashboard',     icon: Crown,        view: 'admin' },
             { label: 'Transaction History', icon: ArrowUpRight, view: 'transactions' },
