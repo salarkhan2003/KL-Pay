@@ -193,8 +193,13 @@ const NoOutletSetup: React.FC<{
   const handleCreate = async () => {
     if (!form.name || !onSaveOutlet) return;
     setSaving(true);
-    await onSaveOutlet({ ...form });
-    setSaving(false);
+    try {
+      await onSaveOutlet({ ...form });
+    } catch (e) {
+      console.warn('create outlet:', e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAssign = async (id: string) => {

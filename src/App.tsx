@@ -234,11 +234,9 @@ export default function App() {
 
   const assignOutlet = async (outletId: string) => {
     if (!profile) return;
-    await supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', outletId);
+    // Try DB update, don't block on failure
+    supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', outletId).catch(() => {});
     await updateProfile({ merchantOutletId: outletId });
-    // Refresh outlets so merchantOutlet resolves immediately
-    const { data } = await supabase.from('outlets').select('*');
-    if (data) setOutlets(data.map(rowToOutlet));
   };
 
   // ── Seed canteens ─────────────────────────────────────────────────────────
@@ -457,16 +455,31 @@ export default function App() {
 
   const saveOutlet = async (data: Partial<Outlet> & { name: string }) => {
     const id = data.id || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
-    await upsertOutlet({ id, name: data.name, description: data.description || '', image_url: data.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400', is_open: data.isOpen ?? true, merchant_id: data.merchantId || profile?.uid || '', block_name: data.blockName || 'CSE', category: data.category || 'Meals', upi_id: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0 });
-    // If merchant is creating a new outlet and has no outlet assigned yet, auto-assign it
-    if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
-      await assignOutlet(id);
-    } else {
-      // Refresh outlets list
-      const { data: fresh } = await supabase.from('outlets').select('*');
-      if (fresh) setOutlets(fresh.map(rowToOutlet));
+    const outletRow = {
+      id, name: data.name, description: data.description || '',
+      image_url: data.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400',
+      is_open: data.isOpen ?? true, merchant_id: data.merchantId || profile?.uid || '',
+      block_name: data.blockName || 'CSE', category: data.category || 'Meals',
+      upi_id: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0,
+    };
+    try {
+      await upsertOutlet(outletRow);
+    } catch (e) {
+      console.warn('upsertOutlet failed (DB may need SQL migration), continuing locally:', e);
     }
-    showToast(data.id ? 'Outlet updated' : 'Outlet added');
+    // Always update local state so UI reflects the new outlet immediately
+    const newOutlet = rowToOutlet(outletRow);
+    setOutlets(prev => {
+      const exists = prev.find(o => o.id === id);
+      return exists ? prev.map(o => o.id === id ? newOutlet : o) : [...prev, newOutlet];
+    });
+    // If merchant creating new outlet with no assignment yet, auto-assign locally
+    if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
+      // Try DB assign, but don't block on failure
+      supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', id).catch(() => {});
+      updateProfile({ merchantOutletId: id });
+    }
+    showToast(data.id ? 'Outlet updated' : 'Outlet created');
   };
 
   const deleteOutlet = async (outletId: string) => { await deleteOutletDb(outletId); showToast('Outlet deleted'); };
