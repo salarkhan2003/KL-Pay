@@ -353,7 +353,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                       <input ref={pinRef} type={showPin ? 'text' : 'password'} placeholder="Enter dev PIN"
                         value={pin} onChange={e => { setPin(e.target.value); setPinError(''); }}
                         onKeyDown={e => e.key === 'Enter' && handlePinSubmit()}
-                        className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-4 pr-12 text-lg font-black tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-white placeholder:text-white/20 placeholder:tracking-normal" />
+                        className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-4 pr-12 text-lg font-black tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-white placeholder:text-white/20 placeholder:tracking-normal"
+                        style={{ colorScheme: 'dark' }} />
                       <button onClick={() => setShowPin(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60">
                         {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -413,7 +414,8 @@ const PasswordField: React.FC<{
     <input type={show ? 'text' : 'password'} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && onEnter?.()}
-      className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20" />
+      className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20"
+      style={{ colorScheme: 'dark' }} />
     <button type="button" onClick={onToggle} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60">
       {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
     </button>
