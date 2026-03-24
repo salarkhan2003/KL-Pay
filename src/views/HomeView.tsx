@@ -16,11 +16,8 @@ interface HomeViewProps {
   setCategoryFilter: (c: string) => void;
 }
 
-// Only show these canteens on the home screen
-const VISIBLE_OUTLET_IDS = ['friends-canteen', 'test-canteen'];
-
 export const HomeView: React.FC<HomeViewProps> = ({ outlets, onSelectOutlet }) => {
-  const visibleOutlets = outlets.filter(o => VISIBLE_OUTLET_IDS.includes(o.id));
+  const visibleOutlets = outlets;
 
   return (
     <motion.div

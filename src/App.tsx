@@ -393,7 +393,7 @@ export default function App() {
           {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} />}
           {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} />}
           {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
-          {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} />}
+          {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} />}
           {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} />}
           {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} />}
           {view === 'kcoins' && <KCoinsView profile={profile} />}
