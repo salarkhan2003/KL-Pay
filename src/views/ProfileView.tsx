@@ -147,30 +147,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, user, onLogou
           </div>
         </button>
       </div>
-      {/* Role switcher — full access dev tool */}
       <div className="pt-4 border-t border-white/5 space-y-4">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-3 flex items-center gap-2">
-            <Shield className="w-3 h-3" /> Switch Role (Dev)
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['student', 'merchant', 'admin'] as const).map(role => (
-              <button key={role} onClick={() => onUpdateProfile({ role })}
-                className={cn(
-                  "py-3 rounded-2xl text-xs font-black uppercase border transition-all",
-                  profile?.role === role
-                    ? role === 'admin' ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
-                      : role === 'merchant' ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                      : "bg-klu-red/20 border-klu-red/40 text-klu-red"
-                    : "border-white/5 text-white/20 hover:border-white/20 hover:text-white/40"
-                )}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-          <p className="text-[9px] text-white/20 text-center mt-2">Tap to switch role instantly</p>
-        </div>
 
         {/* Outlet assignment — needed for merchant role testing */}
         {(profile?.role === 'merchant' || profile?.role === 'admin') && outlets.length > 0 && onAssignOutlet && (
