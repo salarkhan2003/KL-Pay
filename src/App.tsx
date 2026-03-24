@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  collection, doc, onSnapshot, setDoc, getDoc,
-  updateDoc, query, where, orderBy, serverTimestamp, deleteDoc, increment
-} from 'firebase/firestore';
-import { db } from './firebase';
-import { supabase } from './supabase';
+  supabase, upsertOutlet, deleteOutletDb, upsertMenuItem, deleteMenuItemDb,
+  insertOrder, updateOrderStatusDb, deleteOrderDb, insertSupportTicket,
+  updateProfileFields, awardKCoinsSupabase,
+  rowToOutlet, rowToMenuItem, rowToOrder, rowToTransaction, rowToSupportTicket,
+} from './supabase';
 import { saveUserProfile, signOutUser, getMerchantOutletByCode } from './auth';
 import { Trash2, UtensilsCrossed, LogOut } from 'lucide-react';
 import { UserProfile, Outlet, MenuItem, Order, OrderItem, SupportTicket, CartItem, Transaction } from './types';
@@ -33,25 +33,15 @@ declare global { interface Window { Cashfree: any; } }
 const FRIENDS_ID = 'friends-canteen';
 const TEST_ID    = 'test-canteen';
 
-const SEED_OUTLETS: Omit<Outlet, 'merchantId'>[] = [
-  { id: FRIENDS_ID, name: "Friend's Canteen", description: 'Authentic biryani and SP Curry specials.',
-    imageUrl: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/biryani-logo.jpeg',
-    isOpen: true, blockName: 'Tulip Hostel', category: 'Meals', upiId: 'friends.canteen@okaxis', timings: '7am – 10pm', rating: 4.7 },
-  { id: TEST_ID, name: 'Test Canteen', description: 'Dev testing — Rs.1 items only.',
-    imageUrl: 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400',
-    isOpen: true, blockName: 'CSE', category: 'Snack', upiId: 'test.canteen@okaxis', timings: '24/7', rating: 5.0 },
+const SEED_OUTLETS = [
+  { id: FRIENDS_ID, name: "Friend's Canteen", description: 'Authentic biryani and SP Curry specials.', image_url: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/biryani-logo.jpeg', is_open: true, merchant_id: '', block_name: 'Tulip Hostel', category: 'Meals', upi_id: 'friends.canteen@okaxis', timings: '7am – 10pm', rating: 4.7 },
+  { id: TEST_ID,    name: 'Test Canteen',      description: 'Dev testing — Rs.1 items only.',          image_url: 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400', is_open: true, merchant_id: '', block_name: 'CSE', category: 'Snack', upi_id: 'test.canteen@okaxis', timings: '24/7', rating: 5.0 },
 ];
 
-const SEED_MENU: MenuItem[] = [
-  { id: `${FRIENDS_ID}_biryani`, outletId: FRIENDS_ID, name: 'Biryani', description: 'Classic aromatic biryani with raita',
-    price: 80, imageUrl: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/biryani-logo.jpeg',
-    category: 'Main', isAvailable: true, prepTime: '15m' },
-  { id: `${FRIENDS_ID}_sp_biryani`, outletId: FRIENDS_ID, name: 'SP Curry Biryani', description: 'Special SP curry biryani — rich and spicy',
-    price: 100, imageUrl: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/sp-biryani.jpeg',
-    category: 'Main', isAvailable: true, prepTime: '20m' },
-  { id: `${TEST_ID}_chocolate`, outletId: TEST_ID, name: 'Chocolate', description: 'Rs.1 test item for Cashfree testing',
-    price: 1, imageUrl: 'https://images.unsplash.com/photo-1481391319762-47dff72954d9?auto=format&fit=crop&w=400',
-    category: 'Snack', isAvailable: true, prepTime: '1m' },
+const SEED_MENU = [
+  { id: `${FRIENDS_ID}_biryani`,    outlet_id: FRIENDS_ID, name: 'Biryani',          description: 'Classic aromatic biryani with raita',          price: 80,  image_url: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/biryani-logo.jpeg', category: 'Main',  is_available: true, prep_time: '15m' },
+  { id: `${FRIENDS_ID}_sp_biryani`, outlet_id: FRIENDS_ID, name: 'SP Curry Biryani', description: 'Special SP curry biryani — rich and spicy',      price: 100, image_url: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/sp-biryani.jpeg',    category: 'Main',  is_available: true, prep_time: '20m' },
+  { id: `${TEST_ID}_chocolate`,     outlet_id: TEST_ID,    name: 'Chocolate',         description: 'Rs.1 test item for Cashfree payment testing',   price: 1,   image_url: 'https://images.unsplash.com/photo-1481391319762-47dff72954d9?auto=format&fit=crop&w=400',  category: 'Snack', is_available: true, prep_time: '1m'  },
 ];
 
 export default function App() {
@@ -78,16 +68,13 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Supabase auth ─────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const u = session.user;
-        const phone = localStorage.getItem('klone_phone') || '';
-        localStorage.removeItem('klone_phone');
         try {
-          const p = await saveUserProfile(u.id, u.email || '', phone, 'salarkhanpatan7861@gmail.com');
+          const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
           setProfile(p);
           if (p.role === 'merchant') setView('merchant');
           else if (p.role === 'admin') setView('admin');
@@ -98,13 +85,9 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const u = session.user;
-        const phone = localStorage.getItem('klone_phone') || '';
-        localStorage.removeItem('klone_phone');
         try {
-          const p = await saveUserProfile(u.id, u.email || '', phone, 'salarkhanpatan7861@gmail.com');
-          setProfile(p);
-          setIsSkipped(false);
+          const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
+          setProfile(p); setIsSkipped(false);
           if (p.role === 'merchant') setView('merchant');
           else if (p.role === 'admin') setView('admin');
         } catch (e) { console.warn('Profile save:', e); }
@@ -122,128 +105,118 @@ export default function App() {
 
   const devLogin = async (role: 'student' | 'merchant' | 'admin') => {
     const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
-    const p: UserProfile = {
-      uid: `dev_${role}_${Date.now()}`,
-      email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`,
-      displayName: names[role], role, kCoins: role === 'student' ? 120 : 0,
-      streak: role === 'student' ? 5 : 0, block: 'CSE', phone: '9999999999',
-    };
-    setProfile(p);
-    setIsSkipped(false);
-    await seedCanteenData(p.uid);
+    const p: UserProfile = { uid: `dev_${role}_${Date.now()}`, email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`, displayName: names[role], role, kCoins: role === 'student' ? 120 : 0, streak: role === 'student' ? 5 : 0, block: 'CSE', phone: '9999999999' };
+    setProfile(p); setIsSkipped(false);
+    await seedCanteenData();
     setView(role === 'merchant' ? 'merchant' : role === 'admin' ? 'admin' : 'home');
   };
 
   const merchantCodeLogin = async (code: string): Promise<boolean> => {
     const outletId = getMerchantOutletByCode(code);
     if (!outletId) return false;
-    const p: UserProfile = {
-      uid: `merchant_${outletId}_${Date.now()}`,
-      email: `merchant_${outletId}@kluniversity.in`,
-      displayName: outletId === FRIENDS_ID ? "Friend's Canteen" : 'Test Canteen',
-      role: 'merchant', kCoins: 0, streak: 0, block: 'CSE', merchantOutletId: outletId,
-    };
-    setProfile(p);
-    setIsSkipped(false);
-    await seedCanteenData(p.uid);
+    const p: UserProfile = { uid: `merchant_${outletId}_${Date.now()}`, email: `merchant_${outletId}@kluniversity.in`, displayName: outletId === FRIENDS_ID ? "Friend's Canteen" : 'Test Canteen', role: 'merchant', kCoins: 0, streak: 0, block: 'CSE', merchantOutletId: outletId };
+    setProfile(p); setIsSkipped(false);
+    await seedCanteenData();
     setView('merchant');
     return true;
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!profile) return;
-    try {
-      await updateDoc(doc(db, 'users', profile.uid), updates);
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
-    } catch (e) { console.warn('updateProfile:', e); }
+    const fieldMap: Record<string, string> = { displayName: 'display_name', phone: 'phone', kCoins: 'k_coins', streak: 'streak', merchantOutletId: 'merchant_outlet_id' };
+    const dbUpdates: Record<string, any> = {};
+    for (const [k, v] of Object.entries(updates)) { if (fieldMap[k]) dbUpdates[fieldMap[k]] = v; }
+    if (Object.keys(dbUpdates).length) await updateProfileFields(profile.uid, dbUpdates);
+    setProfile(prev => prev ? { ...prev, ...updates } : null);
   };
 
   const assignOutlet = async (outletId: string) => {
     if (!profile) return;
-    await updateDoc(doc(db, 'outlets', outletId), { merchantId: profile.uid }).catch(console.warn);
+    await supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', outletId);
     await updateProfile({ merchantOutletId: outletId });
   };
 
   // ── Seed canteens ─────────────────────────────────────────────────────────
-  const seedCanteenData = async (uid?: string) => {
+  const seedCanteenData = async () => {
     if (isSeeding) return;
     setIsSeeding(true);
     try {
-      for (const outlet of SEED_OUTLETS) {
-        await setDoc(doc(db, 'outlets', outlet.id), { ...outlet, merchantId: uid || '' }, { merge: true });
-      }
-      for (const item of SEED_MENU) {
-        await setDoc(doc(db, 'outlets', item.outletId, 'menu', item.id), item, { merge: true });
-      }
-    } catch (e) { console.warn('seedCanteenData:', e); }
+      for (const o of SEED_OUTLETS) await upsertOutlet(o);
+      for (const m of SEED_MENU) await upsertMenuItem(m);
+    } catch (e) { console.warn('seed:', e); }
     finally { setIsSeeding(false); }
   };
 
-  // ── Firestore listeners ───────────────────────────────────────────────────
+  // ── Supabase realtime listeners ───────────────────────────────────────────
   useEffect(() => {
-    return onSnapshot(query(collection(db, 'outlets')),
-      snap => setOutlets(snap.docs.map(d => ({ id: d.id, ...d.data() } as Outlet))),
-      err => console.warn('outlets:', err.code));
+    supabase.from('outlets').select('*').then(({ data }) => { if (data) setOutlets(data.map(rowToOutlet)); });
+    const ch = supabase.channel('outlets').on('postgres_changes', { event: '*', schema: 'public', table: 'outlets' }, () => {
+      supabase.from('outlets').select('*').then(({ data }) => { if (data) setOutlets(data.map(rowToOutlet)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   useEffect(() => {
     if (!profile) return;
-    return onSnapshot(
-      query(collection(db, 'orders'), where('studentId', '==', profile.uid), orderBy('createdAt', 'desc')),
-      snap => setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order))),
-      err => console.warn('orders:', err.code));
+    supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setOrders(data.map(rowToOrder)); });
+    const ch = supabase.channel(`orders_student_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `student_id=eq.${profile.uid}` }, () => {
+      supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setOrders(data.map(rowToOrder)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.uid]);
 
   useEffect(() => {
     if (!profile || profile.role !== 'merchant') return;
     const outletId = profile.merchantOutletId || outlets.find(o => o.merchantId === profile.uid)?.id;
     if (!outletId) return;
-    return onSnapshot(
-      query(collection(db, 'orders'), where('outletId', '==', outletId), orderBy('createdAt', 'desc')),
-      snap => setMerchantOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order))),
-      err => console.warn('merchantOrders:', err.code));
+    supabase.from('orders').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).then(({ data }) => { if (data) setMerchantOrders(data.map(rowToOrder)); });
+    const ch = supabase.channel(`orders_merchant_${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, () => {
+      supabase.from('orders').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).then(({ data }) => { if (data) setMerchantOrders(data.map(rowToOrder)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.uid, profile?.role, profile?.merchantOutletId, outlets.length]);
 
   useEffect(() => {
     if (!profile || profile.role !== 'merchant') return;
     const outletId = profile.merchantOutletId || outlets.find(o => o.merchantId === profile.uid)?.id;
     if (!outletId) return;
-    return onSnapshot(
-      query(collection(db, `outlets/${outletId}/menu`), orderBy('name')),
-      snap => setMerchantMenu(snap.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem))),
-      err => console.warn('merchantMenu:', err.code));
+    supabase.from('menu_items').select('*').eq('outlet_id', outletId).order('name').then(({ data }) => { if (data) setMerchantMenu(data.map(rowToMenuItem)); });
+    const ch = supabase.channel(`menu_${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${outletId}` }, () => {
+      supabase.from('menu_items').select('*').eq('outlet_id', outletId).order('name').then(({ data }) => { if (data) setMerchantMenu(data.map(rowToMenuItem)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.uid, profile?.role, profile?.merchantOutletId, outlets.length]);
 
   useEffect(() => {
     if (!profile) return;
-    return onSnapshot(
-      query(collection(db, 'support'), where('userId', '==', profile.uid), orderBy('createdAt', 'desc')),
-      snap => setSupportTickets(snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket))),
-      err => console.warn('support:', err.code));
+    supabase.from('support_tickets').select('*').eq('user_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setSupportTickets(data.map(rowToSupportTicket)); });
   }, [profile?.uid]);
 
   useEffect(() => {
     if (!profile) return;
-    return onSnapshot(
-      query(collection(db, 'transactions'), where('studentId', '==', profile.uid), orderBy('createdAt', 'desc')),
-      snap => setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction))),
-      err => console.warn('transactions:', err.code));
+    supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
+    const ch = supabase.channel(`tx_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `student_id=eq.${profile.uid}` }, () => {
+      supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.uid]);
 
   useEffect(() => {
     if (profile?.role !== 'admin') return;
-    return onSnapshot(
-      query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
-      snap => setAllOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order))),
-      err => console.warn('allOrders:', err.code));
+    supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllOrders(data.map(rowToOrder)); });
+    const ch = supabase.channel('orders_admin').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllOrders(data.map(rowToOrder)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.role]);
 
   useEffect(() => {
     if (!selectedOutlet) return;
-    return onSnapshot(
-      query(collection(db, `outlets/${selectedOutlet.id}/menu`)),
-      snap => setMenuItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem))),
-      err => console.warn('menuItems:', err.code));
+    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
+    const ch = supabase.channel(`menu_view_${selectedOutlet.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
+      supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [selectedOutlet?.id]);
 
   // Handle Cashfree return URL
@@ -266,8 +239,8 @@ export default function App() {
   // ── Cart ─────────────────────────────────────────────────────────────────
   const addToCart = (item: MenuItem | CartItem) => {
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+      const ex = prev.find(i => i.id === item.id);
+      if (ex) return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { id: item.id, name: item.name, price: item.price, quantity: 1, imageUrl: (item as any).imageUrl || '' }];
     });
   };
@@ -275,11 +248,7 @@ export default function App() {
   const reorder = (items: OrderItem[]) => {
     setCart(prev => {
       const next = [...prev];
-      items.forEach(item => {
-        const ex = next.find(i => i.id === item.id);
-        if (ex) ex.quantity += item.quantity;
-        else next.push({ ...item, imageUrl: `https://picsum.photos/seed/${item.id}/100` });
-      });
+      items.forEach(item => { const ex = next.find(i => i.id === item.id); if (ex) ex.quantity += item.quantity; else next.push({ ...item, imageUrl: '' }); });
       return next;
     });
     setView('cart');
@@ -289,7 +258,6 @@ export default function App() {
     setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
 
   const removeItemFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
-
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.quantity, 0), [cart]);
 
   // ── Checkout ─────────────────────────────────────────────────────────────
@@ -297,100 +265,60 @@ export default function App() {
     if (!profile || !selectedOutlet || cart.length === 0) return;
     const orderId = `KLP_${Date.now()}`;
     const totalAmount = Math.round((cartTotal + PLATFORM_FEE) * 100) / 100;
+    const token = Math.floor(1000 + Math.random() * 9000).toString();
     try {
       const res = await fetch('/api/payments/create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: totalAmount, customerId: profile.uid, orderId,
-          customerEmail: profile.email, customerName: profile.displayName,
-          customerPhone: profile.phone || '9999999999',
-          merchantVpa: selectedOutlet.upiId, outletName: selectedOutlet.name,
-        }),
+        body: JSON.stringify({ amount: totalAmount, customerId: profile.uid, orderId, customerEmail: profile.email, customerName: profile.displayName, customerPhone: profile.phone || '9999999999', merchantVpa: selectedOutlet.upiId, outletName: selectedOutlet.name }),
       });
       const sessionData = await res.json();
       if (!sessionData.payment_session_id) throw new Error(sessionData.error || 'Session creation failed');
 
-      const token = Math.floor(1000 + Math.random() * 9000).toString();
-      await setDoc(doc(db, 'orders', orderId), {
-        studentId: profile.uid, outletId: selectedOutlet.id,
-        userName: profile.displayName, userPhone: profile.phone || '',
-        items: cart, totalAmount, convenienceFee: PLATFORM_FEE,
-        vendorAmount: cartTotal, status: 'pending', paymentStatus: 'unpaid',
-        token, createdAt: serverTimestamp(),
-      });
+      await insertOrder({ id: orderId, student_id: profile.uid, outlet_id: selectedOutlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token, created_at: new Date().toISOString() });
 
       const cashfree = new window.Cashfree({ mode: 'production' });
       await cashfree.checkout({ paymentSessionId: sessionData.payment_session_id, redirectTarget: '_self' });
       setCart([]); setSelectedOutlet(null);
-    } catch (err) {
-      console.error('Checkout failed:', err);
-      showToast('Payment initialization failed', 'error');
-    }
+    } catch (err) { console.error('Checkout:', err); showToast('Payment initialization failed', 'error'); }
   };
 
   // ── Merchant / Admin helpers ──────────────────────────────────────────────
   const getMerchantOutlet = (override?: string) =>
     override ? outlets.find(o => o.id === override)
-      : outlets.find(o => o.merchantId === profile?.uid)
-          || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
+      : outlets.find(o => o.merchantId === profile?.uid) || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
 
   const toggleMenuItemAvailability = async (itemId: string, isAvailable: boolean) => {
-    const outlet = getMerchantOutlet();
-    if (!outlet) return;
-    await updateDoc(doc(db, 'outlets', outlet.id, 'menu', itemId), { isAvailable }).catch(console.warn);
+    await supabase.from('menu_items').update({ is_available: isAvailable }).eq('id', itemId);
   };
 
   const saveMenuItem = async (item: Partial<MenuItem> & { name: string; price: number; category: string }, outletIdOverride?: string) => {
     const outlet = getMerchantOutlet(outletIdOverride);
     if (!outlet) { showToast('No outlet assigned', 'error'); return; }
     const itemId = item.id || `${outlet.id}_${item.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
-    const data: MenuItem = {
-      id: itemId, outletId: outlet.id, name: item.name, description: item.description || '',
-      price: item.price, imageUrl: item.imageUrl || `https://picsum.photos/seed/${itemId}/100`,
-      category: item.category, isAvailable: item.isAvailable ?? true, prepTime: item.prepTime || '10m',
-    };
-    await setDoc(doc(db, 'outlets', outlet.id, 'menu', itemId), data);
+    await upsertMenuItem({ id: itemId, outlet_id: outlet.id, name: item.name, description: item.description || '', price: item.price, image_url: item.imageUrl || '', category: item.category, is_available: item.isAvailable ?? true, prep_time: item.prepTime || '10m' });
     showToast(item.id ? 'Item updated' : 'Item added');
   };
 
-  const deleteMenuItem = async (itemId: string, outletIdOverride?: string) => {
-    const outlet = getMerchantOutlet(outletIdOverride);
-    if (!outlet) return;
-    await deleteDoc(doc(db, 'outlets', outlet.id, 'menu', itemId)).catch(console.warn);
+  const deleteMenuItem = async (itemId: string, _?: string) => {
+    await deleteMenuItemDb(itemId);
     showToast('Item deleted');
   };
 
   const saveOutlet = async (data: Partial<Outlet> & { name: string }) => {
     const id = data.id || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
-    const outlet: Outlet = {
-      id, name: data.name, description: data.description || '',
-      imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400',
-      isOpen: data.isOpen ?? true, merchantId: data.merchantId || profile?.uid || '',
-      blockName: data.blockName || 'CSE', category: data.category || 'Meals',
-      upiId: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0,
-    };
-    await setDoc(doc(db, 'outlets', id), outlet);
+    await upsertOutlet({ id, name: data.name, description: data.description || '', image_url: data.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400', is_open: data.isOpen ?? true, merchant_id: data.merchantId || profile?.uid || '', block_name: data.blockName || 'CSE', category: data.category || 'Meals', upi_id: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0 });
     showToast(data.id ? 'Outlet updated' : 'Outlet added');
   };
 
-  const deleteOutlet = async (outletId: string) => {
-    await deleteDoc(doc(db, 'outlets', outletId)).catch(console.warn);
-    showToast('Outlet deleted');
-  };
+  const deleteOutlet = async (outletId: string) => { await deleteOutletDb(outletId); showToast('Outlet deleted'); };
 
-  const updateOrderStatus = async (orderId: string, status: Order['status']) =>
-    updateDoc(doc(db, 'orders', orderId), { status }).catch(console.warn);
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => { await updateOrderStatusDb(orderId, status); };
 
-  const deleteOrder = async (orderId: string) => {
-    await deleteDoc(doc(db, 'orders', orderId)).catch(console.warn);
-    showToast('Order deleted');
-    setDeleteConfirmId(null);
-  };
+  const deleteOrder = async (orderId: string) => { await deleteOrderDb(orderId); showToast('Order deleted'); setDeleteConfirmId(null); };
 
   const submitSupportTicket = async (subject: string, message: string) => {
     if (!profile) return;
-    const id = Math.random().toString(36).substring(2, 15);
-    await setDoc(doc(db, 'support', id), { id, userId: profile.uid, subject, message, status: 'open', createdAt: serverTimestamp() });
+    await insertSupportTicket({ id: crypto.randomUUID(), user_id: profile.uid, subject, message, status: 'open', created_at: new Date().toISOString() });
     showToast('Support ticket submitted!');
   };
 
@@ -417,7 +345,7 @@ export default function App() {
     <LoginPage
       onSkip={() => setIsSkipped(true)}
       onMagicLinkComplete={async (uid, email, phone) => {
-        const p = await saveUserProfile(uid, email, phone, 'salarkhanpatan7861@gmail.com');
+        const p = await saveUserProfile(uid, email, phone, {});
         setProfile(p);
       }}
       onDevLogin={devLogin}
@@ -446,55 +374,25 @@ export default function App() {
       </header>
       <main className="p-6">
         <AnimatePresence mode="wait">
-          {view === 'home' && (
-            <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }}
-              searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}}
-              categoryFilter="All" setCategoryFilter={() => {}} />
-          )}
-          {view === 'outlet' && selectedOutlet && (
-            <OutletDetailView outlet={selectedOutlet} menuItems={menuItems}
-              onBack={() => setView('home')} onAddToCart={addToCart} />
-          )}
-          {view === 'cart' && (
-            <CartView cart={cart} onUpdateQuantity={updateCartQuantity}
-              onRemove={removeItemFromCart} onCheckout={handleCheckout} />
-          )}
+          {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
+          {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} onBack={() => setView('home')} onAddToCart={addToCart} />}
+          {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} />}
           {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} />}
-          {view === 'profile' && (
-            <ProfileView profile={profile} user={null} onLogout={logout}
-              onUpdateProfile={updateProfile} onSwitchView={setView}
-              outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />
-          )}
-          {view === 'merchant' && (
-            <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null}
-              onUpdateStatus={updateOrderStatus} onSwitchView={setView} />
-          )}
-          {view === 'merchant_menu' && (
-            <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability}
-              onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} />
-          )}
+          {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
+          {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} />}
+          {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} />}
           {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} />}
           {view === 'kcoins' && <KCoinsView profile={profile} />}
-          {view === 'direct_pay' && (
-            <DirectPayView outlets={outlets} profile={profile} user={null}
-              onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} />
-          )}
+          {view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} user={null} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} />}
           {view === 'transactions' && <TransactionHistoryView transactions={transactions} />}
-          {view === 'admin' && (
-            <AdminView allOrders={allOrders} outlets={outlets}
-              onSeedData={() => seedCanteenData(profile?.uid)} isSeeding={isSeeding}
-              onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet}
-              onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)}
-              onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />
-          )}
+          {view === 'admin' && <AdminView allOrders={allOrders} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
         </AnimatePresence>
       </main>
 
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-            className={cn('fixed bottom-24 left-6 right-6 p-4 rounded-2xl shadow-lg z-[100] text-center font-bold text-sm',
-              toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')}>
+            className={cn('fixed bottom-24 left-6 right-6 p-4 rounded-2xl shadow-lg z-[100] text-center font-bold text-sm', toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')}>
             {toast.message}
           </motion.div>
         )}
@@ -509,7 +407,7 @@ export default function App() {
                 <Trash2 className="w-8 h-8" />
               </div>
               <h3 className="text-display text-xl font-black mb-2">Delete Order?</h3>
-              <p className="text-white/40 mb-6 text-sm font-medium">This action cannot be undone.</p>
+              <p className="text-white/40 mb-6 text-sm">This action cannot be undone.</p>
               <div className="flex gap-3">
                 <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-white/5 text-white/60 font-bold rounded-2xl">Cancel</button>
                 <ClayButton onClick={() => deleteOrder(deleteConfirmId)} className="flex-1">Delete</ClayButton>
@@ -519,8 +417,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Navigation activeView={view} onViewChange={setView} role={profile?.role || 'student'}
-        cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)} />
+      <Navigation activeView={view} onViewChange={setView} role={profile?.role || 'student'} cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)} />
     </div>
   );
 }

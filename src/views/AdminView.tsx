@@ -8,8 +8,7 @@ import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
 import { cn } from '../utils';
 import { Order, Outlet, MenuItem } from '../types';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 
 interface AdminViewProps {
   allOrders: Order[];
@@ -96,12 +95,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
   useEffect(() => {
     if (!expandedOutlet) return;
     if (outletMenus[expandedOutlet]) return;
-    const unsub = onSnapshot(
-      collection(db, `outlets/${expandedOutlet}/menu`),
-      snap => setOutletMenus(prev => ({ ...prev, [expandedOutlet]: snap.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem)) })),
-      err => console.warn('menu load:', err.code)
-    );
-    return unsub;
+    supabase.from('menu_items').select('*').eq('outlet_id', expandedOutlet).then(({ data }) => {
+      if (data) setOutletMenus(prev => ({ ...prev, [expandedOutlet]: data.map((r: any) => ({ id: r.id, outletId: r.outlet_id, name: r.name, description: r.description || '', price: r.price, imageUrl: r.image_url || '', category: r.category, isAvailable: r.is_available, prepTime: r.prep_time } as MenuItem)) }));
+    });
   }, [expandedOutlet]);
 
   const handleSaveOutlet = async () => {
