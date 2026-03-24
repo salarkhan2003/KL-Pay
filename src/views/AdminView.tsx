@@ -21,10 +21,20 @@ interface AdminViewProps {
   onDeleteMenuItem: (itemId: string, outletId: string) => Promise<void>;
 }
 
-const BLOCKS     = ['CSE', 'EEE', 'MECH', 'CIVIL', 'R&D', 'FED', 'SDC', 'C'];
+const BLOCKS = [
+  'Tulip Hostel', 'Himalaya Hostel', 'Kanchan Ganga Hostel',
+  'CSE', 'EEE', 'MECH', 'CIVIL', 'R&D', 'FED', 'SDC', 'C',
+];
 const CATEGORIES = ['Meals', 'Cafe', 'Bakery', 'Juice', 'Snacks'];
 const ITEM_CATS  = ['Main', 'Snack', 'Breakfast', 'Beverage', 'Juice', 'Dessert'];
-const EMPTY_OUTLET: Partial<Outlet> = { name: '', description: '', blockName: 'CSE', category: 'Meals', upiId: '', imageUrl: '', isOpen: true, timings: '8am - 9pm' };
+const EMPTY_OUTLET: Partial<Outlet> = { name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', imageUrl: '', isOpen: true, timings: '8am - 9pm' };
+
+// Preset canteens per block — selecting one auto-fills name
+const BLOCK_PRESETS: Record<string, string[]> = {
+  'Tulip Hostel': ["Friend's Canteen", 'Tulip Snacks Corner'],
+  'Himalaya Hostel': ['Himalaya Canteen', 'Himalaya Juice Bar'],
+  'Kanchan Ganga Hostel': ['KG Canteen', 'KG Snacks'],
+};
 const EMPTY_ITEM = { name: '', price: 0, category: 'Main', prepTime: '10m', description: '', imageUrl: '', isAvailable: true };
 
 const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
@@ -94,16 +104,37 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   useEffect(() => {
     if (!expandedOutlet) return;
-    if (outletMenus[expandedOutlet]) return;
-    supabase.from('menu_items').select('*').eq('outlet_id', expandedOutlet).then(({ data }) => {
-      if (data) setOutletMenus(prev => ({ ...prev, [expandedOutlet]: data.map((r: any) => ({ id: r.id, outletId: r.outlet_id, name: r.name, description: r.description || '', price: r.price, imageUrl: r.image_url || '', category: r.category, isAvailable: r.is_available, prepTime: r.prep_time } as MenuItem)) }));
-    });
+    // Load and subscribe to menu items for expanded outlet
+    const load = () => {
+      supabase.from('menu_items').select('*').eq('outlet_id', expandedOutlet).then(({ data }) => {
+        if (data) setOutletMenus(prev => ({
+          ...prev,
+          [expandedOutlet]: data.map((r: any) => ({
+            id: r.id, outletId: r.outlet_id, name: r.name, description: r.description || '',
+            price: r.price, imageUrl: r.image_url || '', category: r.category,
+            isAvailable: r.is_available, prepTime: r.prep_time,
+          } as MenuItem)),
+        }));
+      });
+    };
+    load();
+    const ch = supabase.channel(`admin_menu_${expandedOutlet}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${expandedOutlet}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [expandedOutlet]);
 
   const handleSaveOutlet = async () => {
     if (!outletModal?.name) return;
     setSavingOutlet(true);
-    await onSaveOutlet(outletModal as any);
+    // Generate stable ID from block + name if new outlet
+    const payload = { ...outletModal } as Partial<Outlet> & { name: string };
+    if (!payload.id) {
+      const slug = `${payload.blockName || 'outlet'}-${payload.name}`
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      payload.id = slug;
+    }
+    await onSaveOutlet(payload);
     setSavingOutlet(false);
     setOutletModal(null);
   };
@@ -112,6 +143,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (!itemModal || !itemModal.item.name || !itemModal.item.price) return;
     setSavingItem(true);
     await onSaveMenuItem(itemModal.item as any, itemModal.outletId);
+    // Realtime will refresh via subscription; also clear cache to force reload
     setOutletMenus(prev => { const copy = { ...prev }; delete copy[itemModal.outletId]; return copy; });
     setSavingItem(false);
     setItemModal(null);
@@ -249,22 +281,44 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <AnimatePresence>
         {outletModal && (
           <Modal title={outletModal.id ? 'Edit Outlet' : 'Add Outlet'} onClose={() => setOutletModal(null)}>
-            <Field label="Outlet Name" icon={<Store className="w-4 h-4" />}>
-              <input className="input-field" placeholder="e.g. Rice & Spice" value={outletModal.name || ''}
+            {/* Block / Location */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">
+                <Store className="w-4 h-4" /> Block / Location
+              </p>
+              <select className="input-field" value={outletModal.blockName || 'Tulip Hostel'}
+                onChange={e => setOutletModal(p => ({ ...p!, blockName: e.target.value, name: '' }))}>
+                {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+
+            {/* Canteen Name — type freely or pick a preset */}
+            <Field label="Canteen Name" icon={<Tag className="w-4 h-4" />}>
+              <input className="input-field" placeholder="e.g. Friend's Canteen" value={outletModal.name || ''}
                 onChange={e => setOutletModal(p => ({ ...p!, name: e.target.value }))} autoFocus />
+              {/* Preset suggestions for selected block */}
+              {BLOCK_PRESETS[outletModal.blockName || ''] && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {BLOCK_PRESETS[outletModal.blockName!].map(preset => (
+                    <button key={preset} type="button"
+                      onClick={() => setOutletModal(p => ({ ...p!, name: preset }))}
+                      className={cn('px-2.5 py-1 rounded-full text-[10px] font-black border transition-all',
+                        outletModal.name === preset
+                          ? 'bg-klu-red border-klu-red text-white'
+                          : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30')}>
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              )}
             </Field>
+
             <Field label="Description" icon={<Tag className="w-4 h-4" />}>
               <input className="input-field" placeholder="Short description" value={outletModal.description || ''}
                 onChange={e => setOutletModal(p => ({ ...p!, description: e.target.value }))} />
             </Field>
+
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5">Block</p>
-                <select className="input-field" value={outletModal.blockName || 'CSE'}
-                  onChange={e => setOutletModal(p => ({ ...p!, blockName: e.target.value }))}>
-                  {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5">Category</p>
                 <select className="input-field" value={outletModal.category || 'Meals'}
@@ -272,7 +326,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              <Field label="Timings" icon={<Clock className="w-4 h-4" />}>
+                <input className="input-field" placeholder="8am - 9pm" value={outletModal.timings || ''}
+                  onChange={e => setOutletModal(p => ({ ...p!, timings: e.target.value }))} />
+              </Field>
             </div>
+
             <Field label="UPI ID" icon={<CreditCard className="w-4 h-4" />}>
               <input className="input-field" placeholder="merchant@okaxis" value={outletModal.upiId || ''}
                 onChange={e => setOutletModal(p => ({ ...p!, upiId: e.target.value }))} />
@@ -281,10 +340,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <input className="input-field" placeholder="https://..." value={outletModal.imageUrl || ''}
                 onChange={e => setOutletModal(p => ({ ...p!, imageUrl: e.target.value }))} />
             </Field>
-            <Field label="Timings" icon={<Clock className="w-4 h-4" />}>
-              <input className="input-field" placeholder="8am - 9pm" value={outletModal.timings || ''}
-                onChange={e => setOutletModal(p => ({ ...p!, timings: e.target.value }))} />
-            </Field>
+
             <ClayButton onClick={handleSaveOutlet} className="w-full h-12" disabled={savingOutlet || !outletModal.name}>
               {savingOutlet ? 'Saving...' : outletModal.id ? 'Save Changes' : 'Add Outlet'}
             </ClayButton>
