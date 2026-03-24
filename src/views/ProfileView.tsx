@@ -148,8 +148,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, user, onLogou
         </button>
       </div>
       <div className="pt-4 border-t border-white/5 space-y-4">
-        <div>
-
         {/* Outlet assignment — needed for merchant role testing */}
         {(profile?.role === 'merchant' || profile?.role === 'admin') && outlets.length > 0 && onAssignOutlet && (
           <div>
