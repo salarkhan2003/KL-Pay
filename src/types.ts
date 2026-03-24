@@ -9,10 +9,12 @@ export interface UserProfile {
   lastOrderDate?: any;
   block?: string;
   phone?: string;
+  gender?: 'male' | 'female' | 'other';
+  hostel?: string;
   createdAt?: any;
   savedPaymentMethods?: string[];
   photoURL?: string;
-  merchantOutletId?: string; // which outlet this user manages (dev testing)
+  merchantOutletId?: string;
 }
 
 export interface Outlet {

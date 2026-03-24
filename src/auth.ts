@@ -14,7 +14,8 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
 } from './firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from './supabase';
 import { UserProfile } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -123,13 +124,21 @@ export async function completeMagicLink(href: string): Promise<MagicLinkResult |
   };
 }
 
-// ─── Step 3: Upsert Firestore Profile ─────────────────────────────────────────
+// ─── Step 3: Upsert Firestore + Supabase Profile ──────────────────────────────
+
+export interface ProfileExtras {
+  displayName?: string;
+  studentId?: string;
+  gender?: 'male' | 'female' | 'other';
+  hostel?: string;
+}
 
 export async function saveUserProfile(
   uid: string,
   email: string,
   phone: string,
-  adminEmail: string
+  adminEmail: string,
+  extras: ProfileExtras = {}
 ): Promise<UserProfile> {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
@@ -140,30 +149,62 @@ export async function saveUserProfile(
     const existing = snap.data() as UserProfile;
     const updates: Partial<UserProfile> = {};
 
-    // Always keep phone up-to-date
     if (phone && existing.phone !== phone) updates.phone = phone;
-    // Promote to admin if needed
     if (isAdmin && existing.role !== 'admin') updates.role = 'admin';
+    if (extras.displayName && !existing.displayName) updates.displayName = extras.displayName;
+    if (extras.studentId && !existing.studentId) updates.studentId = extras.studentId;
+    if (extras.gender && !existing.gender) updates.gender = extras.gender;
+    if (extras.hostel && !existing.hostel) updates.hostel = extras.hostel;
 
     if (Object.keys(updates).length > 0) {
       await updateDoc(ref, updates);
     }
 
-    return { ...existing, ...updates };
+    const merged = { ...existing, ...updates };
+    await upsertSupabaseProfile(merged);
+    return merged;
   }
 
-  // New user — create full profile
+  // New user
   const newProfile: UserProfile = {
     uid,
     email,
-    displayName: email.split('@')[0],
+    displayName: extras.displayName || email.split('@')[0],
     role: isAdmin ? 'admin' : 'student',
     phone,
     kCoins: 0,
     streak: 0,
     block: 'CSE',
+    studentId: extras.studentId,
+    gender: extras.gender,
+    hostel: extras.hostel,
   };
 
-  await setDoc(ref, newProfile);
+  await setDoc(ref, { ...newProfile, createdAt: serverTimestamp() });
+  await upsertSupabaseProfile(newProfile);
   return newProfile;
+}
+
+// ─── Supabase profiles upsert ─────────────────────────────────────────────────
+
+async function upsertSupabaseProfile(profile: UserProfile): Promise<void> {
+  try {
+    await supabase.from('profiles').upsert({
+      id: profile.uid,
+      email: profile.email,
+      display_name: profile.displayName,
+      role: profile.role,
+      phone: profile.phone || null,
+      student_id: profile.studentId || null,
+      gender: profile.gender || null,
+      hostel: profile.hostel || null,
+      k_coins: profile.kCoins ?? 0,
+      streak: profile.streak ?? 0,
+      block: profile.block || 'CSE',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+  } catch (err) {
+    // Non-fatal — Firestore is source of truth, Supabase is secondary
+    console.warn('Supabase profile upsert failed:', err);
+  }
 }
