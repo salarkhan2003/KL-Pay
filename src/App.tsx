@@ -44,6 +44,13 @@ const SEED_MENU = [
   { id: `${TEST_ID}_chocolate`,     outlet_id: TEST_ID,    name: 'Chocolate',         description: 'Rs.1 test item for Cashfree payment testing',   price: 1,   image_url: 'https://images.unsplash.com/photo-1481391319762-47dff72954d9?auto=format&fit=crop&w=400',  category: 'Snack', is_available: true, prep_time: '1m'  },
 ];
 
+async function ensureCanteensSeeded() {
+  try {
+    for (const o of SEED_OUTLETS) await upsertOutlet(o);
+    for (const m of SEED_MENU) await upsertMenuItem(m);
+  } catch (e) { console.warn('seed:', e); }
+}
+
 export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +114,7 @@ export default function App() {
     const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
     const p: UserProfile = { uid: `dev_${role}_${Date.now()}`, email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`, displayName: names[role], role, kCoins: role === 'student' ? 120 : 0, streak: role === 'student' ? 5 : 0, block: 'CSE', phone: '9999999999' };
     setProfile(p); setIsSkipped(false);
-    await seedCanteenData();
+    await ensureCanteensSeeded();
     setView(role === 'merchant' ? 'merchant' : role === 'admin' ? 'admin' : 'home');
   };
 
@@ -116,7 +123,7 @@ export default function App() {
     if (!outletId) return false;
     const p: UserProfile = { uid: `merchant_${outletId}_${Date.now()}`, email: `merchant_${outletId}@kluniversity.in`, displayName: outletId === FRIENDS_ID ? "Friend's Canteen" : 'Test Canteen', role: 'merchant', kCoins: 0, streak: 0, block: 'CSE', merchantOutletId: outletId };
     setProfile(p); setIsSkipped(false);
-    await seedCanteenData();
+    await ensureCanteensSeeded();
     setView('merchant');
     return true;
   };
@@ -138,18 +145,25 @@ export default function App() {
 
   // ── Seed canteens ─────────────────────────────────────────────────────────
   const seedCanteenData = async () => {
-    if (isSeeding) return;
     setIsSeeding(true);
-    try {
-      for (const o of SEED_OUTLETS) await upsertOutlet(o);
-      for (const m of SEED_MENU) await upsertMenuItem(m);
-    } catch (e) { console.warn('seed:', e); }
-    finally { setIsSeeding(false); }
+    await ensureCanteensSeeded();
+    setIsSeeding(false);
   };
 
   // ── Supabase realtime listeners ───────────────────────────────────────────
   useEffect(() => {
-    supabase.from('outlets').select('*').then(({ data }) => { if (data) setOutlets(data.map(rowToOutlet)); });
+    const loadOutlets = async () => {
+      const { data } = await supabase.from('outlets').select('*');
+      if (data && data.length > 0) {
+        setOutlets(data.map(rowToOutlet));
+      } else {
+        // Tables exist but are empty — seed the canteens automatically
+        await ensureCanteensSeeded();
+        const { data: seeded } = await supabase.from('outlets').select('*');
+        if (seeded) setOutlets(seeded.map(rowToOutlet));
+      }
+    };
+    loadOutlets();
     const ch = supabase.channel('outlets').on('postgres_changes', { event: '*', schema: 'public', table: 'outlets' }, () => {
       supabase.from('outlets').select('*').then(({ data }) => { if (data) setOutlets(data.map(rowToOutlet)); });
     }).subscribe();
