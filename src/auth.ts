@@ -122,13 +122,13 @@ export async function saveUserProfile(
     email,
     displayName: extras.displayName || email.split('@')[0],
     role: isAdmin ? 'admin' : 'student',
-    phone,
+    phone: phone || '',
     kCoins: 0,
     streak: 0,
     block: 'CSE',
-    studentId,
-    gender: extras.gender,
-    hostel: extras.hostel,
+    ...(studentId ? { studentId } : {}),
+    ...(extras.gender ? { gender: extras.gender } : {}),
+    ...(extras.hostel ? { hostel: extras.hostel } : {}),
   };
 
   await setDoc(ref, { ...newProfile, createdAt: serverTimestamp() }).catch(console.warn);
