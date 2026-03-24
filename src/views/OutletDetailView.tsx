@@ -56,7 +56,7 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({ outlet, menu
                   <h4 className="font-black text-lg">{item.name}</h4>
                   <p className="text-white/40 text-xs font-medium line-clamp-1">{item.description}</p>
                   <div className="flex justify-between items-center mt-3">
-                    <p className="text-xl font-black text-white">₹{item.price}</p>
+                    <p className="text-xl font-black text-white">Rs.{item.price}</p>
                     <button 
                       onClick={() => onAddToCart(item)}
                       className="w-10 h-10 clay-red rounded-xl flex items-center justify-center shadow-lg"

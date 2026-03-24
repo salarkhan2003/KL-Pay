@@ -9,10 +9,10 @@ interface KCoinsViewProps {
 }
 
 const REWARDS = [
-  { coins: 50, label: '₹5 off next order', icon: Gift },
+  { coins: 50, label: 'Rs.5 off next order', icon: Gift },
   { coins: 100, label: 'Free Chai or Coffee', icon: Star },
-  { coins: 200, label: '₹25 off any order', icon: Zap },
-  { coins: 500, label: 'Free Meal (up to ₹80)', icon: Trophy },
+  { coins: 200, label: 'Rs.25 off any order', icon: Zap },
+  { coins: 500, label: 'Free Meal (up to Rs.80)', icon: Trophy },
 ];
 
 const HOW_TO_EARN = [

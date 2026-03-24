@@ -98,7 +98,7 @@ export interface Transaction {
   outletName: string;
   merchantVpa: string;           // merchant UPI VPA
   totalAmount: number;           // what student paid
-  platformFee: number;           // always ₹1 → admin
+  platformFee: number;           // always Rs.2.50 → admin
   vendorAmount: number;          // totalAmount - platformFee
   paymentStatus: 'pending' | 'paid' | 'failed';
   cashfreeOrderId: string;

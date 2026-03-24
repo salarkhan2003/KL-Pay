@@ -125,12 +125,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <GlassCard className="p-4">
           <BarChart3 className="w-6 h-6 text-klu-red mb-2" />
           <p className="text-[10px] text-white/30 font-black uppercase">Total Revenue</p>
-          <p className="text-xl font-black">₹{totalRevenue}</p>
+          <p className="text-xl font-black">Rs.{totalRevenue}</p>
         </GlassCard>
         <GlassCard className="p-4">
           <TrendingUp className="w-6 h-6 text-emerald-500 mb-2" />
           <p className="text-[10px] text-white/30 font-black uppercase">Platform Fees</p>
-          <p className="text-xl font-black">₹{totalFees}</p>
+          <p className="text-xl font-black">Rs.{totalFees}</p>
         </GlassCard>
       </div>
 
@@ -215,7 +215,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-black truncate">{item.name}</p>
-                            <p className="text-[10px] text-white/30">₹{item.price} · {item.category}</p>
+                            <p className="text-[10px] text-white/30">Rs.{item.price} · {item.category}</p>
                           </div>
                           <div className="flex gap-1.5 flex-shrink-0">
                             <button onClick={() => setItemModal({ item: { ...item }, outletId: outlet.id })}
@@ -300,7 +300,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 onChange={e => setItemModal(p => p ? { ...p, item: { ...p.item, name: e.target.value } } : null)} autoFocus />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Price (₹)" icon={<CreditCard className="w-4 h-4" />}>
+              <Field label="Price (Rs.)" icon={<CreditCard className="w-4 h-4" />}>
                 <input className="input-field" type="number" inputMode="numeric" placeholder="0" value={itemModal.item.price || ''}
                   onChange={e => setItemModal(p => p ? { ...p, item: { ...p.item, price: parseFloat(e.target.value) || 0 } } : null)} />
               </Field>

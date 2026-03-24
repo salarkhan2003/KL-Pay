@@ -43,7 +43,7 @@ export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRe
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-black truncate">{item.name}</h4>
-                  <p className="text-klu-red font-black text-sm">₹{item.price}</p>
+                  <p className="text-klu-red font-black text-sm">Rs.{item.price}</p>
                 </div>
                 <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1 border border-white/10">
                   <button
@@ -76,16 +76,16 @@ export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRe
           <GlassCard className="space-y-4">
             <div className="flex justify-between text-sm font-medium text-white/40">
               <span>Subtotal</span>
-              <span>₹{subtotal}</span>
+              <span>Rs.{subtotal}</span>
             </div>
             <div className="flex justify-between text-sm font-medium text-white/40">
               <span>Convenience Fee</span>
-              <span>₹{fee}</span>
+              <span>Rs.{fee}</span>
             </div>
             <div className="h-[1px] bg-white/10" />
             <div className="flex justify-between text-xl font-black">
               <span>Total</span>
-              <span>₹{total}</span>
+              <span>Rs.{total}</span>
             </div>
             <ClayButton onClick={onCheckout} className="w-full">Place Order</ClayButton>
           </GlassCard>

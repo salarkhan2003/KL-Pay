@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { QrCode, ScanLine, IndianRupee, ArrowRight, CheckCircle2, AlertCircle, Loader2, Store, X } from 'lucide-react';
+import { QrCode, ScanLine, IndianRupee, ArrowRight, AlertCircle, Loader2, Store, X } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
 import { Outlet, UserProfile } from '../types';
 import { initiateDirectPayment } from '../paymentEngine';
-import { User } from 'firebase/auth';
 
 interface DirectPayViewProps {
   outlets: Outlet[];
   profile: UserProfile | null;
-  user: User | null;
+  user: UserProfile | null;
   onSuccess: (amount: number, outletName: string) => void;
 }
 
@@ -24,7 +23,6 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Quick-amount presets
   const PRESETS = [20, 30, 50, 80, 100, 150];
 
   const handleSelectOutlet = (outlet: Outlet) => {
@@ -34,9 +32,9 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
   };
 
   const handlePay = async () => {
-    if (!selectedOutlet || !user || !profile) return;
+    if (!selectedOutlet || !profile) return;
     const amt = parseFloat(amount);
-    if (!amt || amt < 2) { setError('Minimum amount is ₹2'); return; }
+    if (!amt || amt < 2) { setError('Minimum amount is Rs.2'); return; }
     if (!selectedOutlet.upiId) { setError('This outlet has no UPI ID configured'); return; }
 
     setLoading(true);
@@ -48,7 +46,7 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
         outletId: selectedOutlet.id,
         outletName: selectedOutlet.name,
         merchantVpa: selectedOutlet.upiId,
-        studentId: user.uid,
+        studentId: profile.uid,
         studentName: profile.displayName,
         studentEmail: profile.email,
         studentPhone: profile.phone || '9999999999',
@@ -81,10 +79,8 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
       </div>
 
       <AnimatePresence mode="wait">
-        {/* Step 1: Select outlet (simulates QR scan) */}
         {step === 'scan' && (
           <motion.div key="scan" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-4">
-            {/* QR scan hint */}
             <div className="glass-frosted rounded-[28px] border border-white/10 p-6 flex flex-col items-center gap-4">
               <div className="w-20 h-20 border-2 border-dashed border-klu-red/40 rounded-2xl flex items-center justify-center">
                 <QrCode className="w-10 h-10 text-klu-red/60" />
@@ -114,10 +110,8 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
           </motion.div>
         )}
 
-        {/* Step 2: Enter amount */}
         {step === 'amount' && selectedOutlet && (
           <motion.div key="amount" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-5">
-            {/* Outlet header */}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex-shrink-0">
                 <img src={selectedOutlet.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={selectedOutlet.name} />
@@ -131,7 +125,6 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
               </button>
             </div>
 
-            {/* Amount input */}
             <GlassCard className="p-6">
               <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-3">Enter Amount</p>
               <div className="flex items-center gap-2 mb-4">
@@ -147,7 +140,6 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
                 />
               </div>
 
-              {/* Quick presets */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {PRESETS.map(p => (
                   <button
@@ -155,7 +147,7 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
                     onClick={() => setAmount(String(p))}
                     className={`px-3 py-1.5 rounded-full text-xs font-black border transition-all ${amount === String(p) ? 'bg-klu-red border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
                   >
-                    ₹{p}
+                    Rs.{p}
                   </button>
                 ))}
               </div>
@@ -169,23 +161,22 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
               />
             </GlassCard>
 
-            {/* Fee breakdown */}
             {amount && parseFloat(amount) >= 2 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 className="glass-frosted rounded-[20px] border border-white/10 p-4 space-y-2">
                 <div className="flex justify-between text-xs font-bold text-white/40">
-                  <span>You pay</span><span>₹{parseFloat(amount).toFixed(2)}</span>
+                  <span>You pay</span><span>Rs.{parseFloat(amount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-white/40">
-                  <span>Platform fee</span><span>₹1.00</span>
+                  <span>Platform fee</span><span>Rs.2.50</span>
                 </div>
                 <div className="h-px bg-white/10" />
                 <div className="flex justify-between text-sm font-black">
                   <span>{selectedOutlet.name} receives</span>
-                  <span className="text-emerald-400">₹{(parseFloat(amount) - 1).toFixed(2)}</span>
+                  <span className="text-emerald-400">Rs.{(parseFloat(amount) - 2.5).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-amber-400">
-                  <span>K-Coins earned</span><span>+5 🪙</span>
+                  <span>K-Coins earned</span><span>+5</span>
                 </div>
               </motion.div>
             )}
@@ -201,19 +192,16 @@ export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, 
               className="w-full h-14 text-base"
               disabled={loading || !amount || parseFloat(amount) < 2}
             >
-              Pay ₹{amount || '0'} →
+              Pay Rs.{amount || '0'}
             </ClayButton>
           </motion.div>
         )}
 
-        {/* Step 3: Processing */}
         {step === 'paying' && (
           <motion.div key="paying" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="flex flex-col items-center gap-6 py-16">
-            <div className="relative">
-              <div className="w-20 h-20 bg-klu-red/10 border border-klu-red/20 rounded-full flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-klu-red animate-spin" />
-              </div>
+            <div className="w-20 h-20 bg-klu-red/10 border border-klu-red/20 rounded-full flex items-center justify-center">
+              <Loader2 className="w-10 h-10 text-klu-red animate-spin" />
             </div>
             <div className="text-center">
               <p className="font-black text-lg">Opening payment...</p>

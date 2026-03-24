@@ -73,7 +73,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         </GlassCard>
         <GlassCard className="p-4">
           <p className="text-[10px] text-white/30 font-black uppercase">Today Sales</p>
-          <p className="text-3xl font-black">₹{todaySales}</p>
+          <p className="text-3xl font-black">Rs.{todaySales}</p>
         </GlassCard>
       </div>
       {/* Real-time alerts */}
@@ -100,7 +100,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
                   : <ScanLine className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <p className={cn("text-xs font-black", alert.type === 'Food_Order' ? "text-blue-300" : "text-emerald-300")}>
-                    {alert.type === 'Food_Order' ? `New Pre-Order (Token #${alert.token || '—'})` : `Direct Payment Received (₹${alert.amount} from ${alert.fromName})`}
+                    {alert.type === 'Food_Order' ? `New Pre-Order (Token #${alert.token || '—'})` : `Direct Payment Received (Rs.${alert.amount} from ${alert.fromName})`}
                   </p>
                   {alert.note && <p className="text-white/30 text-[10px] truncate">{alert.note}</p>}
                 </div>
@@ -146,11 +146,11 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
                   {order.items.map(item => (
                     <div key={item.id} className="flex justify-between text-sm font-bold">
                       <span className="text-white/70">{item.quantity}× {item.name}</span>
-                      <span className="text-white/40">₹{item.price * item.quantity}</span>
+                      <span className="text-white/40">Rs.{item.price * item.quantity}</span>
                     </div>
                   ))}
                   <div className="flex justify-between text-sm font-black pt-1 border-t border-white/5">
-                    <span>Total</span><span className="text-klu-red">₹{order.vendorAmount}</span>
+                    <span>Total</span><span className="text-klu-red">Rs.{order.vendorAmount}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">

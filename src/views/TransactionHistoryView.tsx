@@ -24,7 +24,7 @@ export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ 
       <div className="grid grid-cols-2 gap-4">
         <GlassCard className="p-4">
           <p className="text-[10px] text-white/30 font-black uppercase">Total Spent</p>
-          <p className="text-2xl font-black">₹{totalSpent}</p>
+          <p className="text-2xl font-black">Rs.{totalSpent}</p>
         </GlassCard>
         <GlassCard className="p-4">
           <p className="text-[10px] text-white/30 font-black uppercase">Coins Earned</p>
@@ -91,7 +91,7 @@ export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ 
 
               {/* Amount + status */}
               <div className="text-right flex-shrink-0">
-                <p className="font-black text-sm">₹{tx.totalAmount}</p>
+                <p className="font-black text-sm">Rs.{tx.totalAmount}</p>
                 <div className="flex items-center gap-1 justify-end mt-1">
                   {tx.paymentStatus === 'paid' && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
                   {tx.paymentStatus === 'pending' && <Clock className="w-3 h-3 text-amber-400" />}

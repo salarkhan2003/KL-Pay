@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Clock, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { GlassCard } from '../components/GlassCard';
@@ -63,7 +63,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onReorder }) => 
                   <p className="text-[10px] text-white/30 font-black uppercase tracking-widest">Token: #{order.token}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-black">₹{order.totalAmount}</p>
+                  <p className="text-xl font-black">Rs.{order.totalAmount}</p>
                   <span className={cn(
                     "text-[10px] uppercase font-black tracking-widest",
                     order.status === 'pending' && "text-amber-500",
@@ -78,7 +78,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onReorder }) => 
                 {order.items.map(item => (
                   <div key={item.id} className="flex justify-between text-xs font-medium text-white/60">
                     <span>{item.quantity}x {item.name}</span>
-                    <span>₹{item.price * item.quantity}</span>
+                    <span>Rs.{item.price * item.quantity}</span>
                   </div>
                 ))}
               </div>
