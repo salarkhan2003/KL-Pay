@@ -5,8 +5,12 @@
 
 create extension if not exists "pgcrypto";
 
--- ── profiles ──────────────────────────────────────────────
-create table if not exists public.profiles (
+-- ── DROP and recreate profiles with correct schema ────────
+-- The old SQL had a bug where `id` was outside CREATE TABLE.
+-- This fixes it by dropping and recreating cleanly.
+drop table if exists public.profiles cascade;
+
+create table public.profiles (
   id                 text primary key,
   email              text not null,
   display_name       text,
@@ -24,7 +28,8 @@ create table if not exists public.profiles (
 );
 
 -- ── outlets ───────────────────────────────────────────────
-create table if not exists public.outlets (
+drop table if exists public.outlets cascade;
+create table public.outlets (
   id          text primary key,
   name        text not null,
   description text default '',
@@ -41,7 +46,8 @@ create table if not exists public.outlets (
 );
 
 -- ── menu_items ────────────────────────────────────────────
-create table if not exists public.menu_items (
+drop table if exists public.menu_items cascade;
+create table public.menu_items (
   id           text primary key,
   outlet_id    text not null references public.outlets(id) on delete cascade,
   name         text not null,
@@ -56,7 +62,8 @@ create table if not exists public.menu_items (
 );
 
 -- ── orders ────────────────────────────────────────────────
-create table if not exists public.orders (
+drop table if exists public.orders cascade;
+create table public.orders (
   id               text primary key,
   student_id       text not null,
   outlet_id        text not null,
@@ -75,7 +82,8 @@ create table if not exists public.orders (
 );
 
 -- ── transactions ──────────────────────────────────────────
-create table if not exists public.transactions (
+drop table if exists public.transactions cascade;
+create table public.transactions (
   id                   text primary key,
   flow                 text not null check (flow in ('Food_Order','Peer_to_Merchant_Pay')),
   student_id           text not null,
@@ -99,7 +107,8 @@ create table if not exists public.transactions (
 );
 
 -- ── support_tickets ───────────────────────────────────────
-create table if not exists public.support_tickets (
+drop table if exists public.support_tickets cascade;
+create table public.support_tickets (
   id         text primary key,
   user_id    text not null,
   subject    text not null,

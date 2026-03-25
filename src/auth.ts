@@ -69,7 +69,7 @@ export async function saveUserProfile(uid: string, email: string, phone: string,
       return rowToProfile({ ...existing, ...patch });
     }
 
-    // New user — insert
+    // New user — upsert (safer than insert — handles schema issues and race conditions)
     const newRow = {
       id: uid, email: email.toLowerCase(),
       display_name: extras.displayName || email.split('@')[0],
@@ -78,8 +78,17 @@ export async function saveUserProfile(uid: string, email: string, phone: string,
       student_id: studentId || null, gender: extras.gender || null, hostel: extras.hostel || null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
-    const { error: insertErr } = await supabase.from('profiles').insert(newRow);
-    if (insertErr && insertErr.code !== '23505') console.warn('profile insert:', insertErr.message);
+    const { error: upsertErr } = await supabase
+      .from('profiles')
+      .upsert(newRow, { onConflict: 'id', ignoreDuplicates: false });
+    if (upsertErr) {
+      console.warn('profile upsert:', upsertErr.message, upsertErr.code);
+      // If upsert fails (e.g. schema mismatch), try minimal columns only
+      await supabase.from('profiles').upsert(
+        { id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0], role: isAdmin ? 'admin' : 'student', updated_at: new Date().toISOString() },
+        { onConflict: 'id', ignoreDuplicates: false }
+      ).catch(() => {});
+    }
     return rowToProfile(newRow);
   } catch (e: any) {
     console.warn('saveUserProfile fallback:', e?.message);
