@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   supabase, upsertOutlet, deleteOutletDb, upsertMenuItem, deleteMenuItemDb,
   insertOrder, updateOrderStatusDb, deleteOrderDb, insertSupportTicket,
-  updateProfileFields, awardKCoinsSupabase,
+  updateProfileFields, awardKCoinsSupabase, upsertTransaction,
   rowToOutlet, rowToMenuItem, rowToOrder, rowToTransaction, rowToSupportTicket,
 } from './supabase';
 import { saveUserProfile, signOutUser, getMerchantOutletByCode } from './auth';
@@ -27,7 +27,6 @@ import { KCoinsView } from './views/KCoinsView';
 import { DirectPayView } from './views/DirectPayView';
 import { TransactionHistoryView } from './views/TransactionHistoryView';
 import { PLATFORM_FEE } from './paymentEngine';
-import { awardKCoinsSupabase } from './supabase';
 
 // alias for use in payment confirmation
 const awardKCoins = awardKCoinsSupabase;
@@ -375,37 +374,112 @@ export default function App() {
   // Handle Cashfree return URL — runs once on mount, independent of profile load
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const orderId = params.get('order_id') || params.get('dp_order_id');
-    if (!orderId) return;
+    const orderId = params.get('order_id');
+    const dpOrderId = params.get('dp_order_id');
+    if (!orderId && !dpOrderId) return;
     window.history.replaceState({}, document.title, window.location.pathname);
-
-    // Store pending confirmation so we can process it once profile loads
-    localStorage.setItem('klone-pending-order', orderId);
+    if (dpOrderId) {
+      localStorage.setItem('klone-confirm-dp', dpOrderId);
+    } else if (orderId) {
+      localStorage.setItem('klone-confirm-order', orderId);
+    }
   }, []);
 
   // Process pending payment once profile is available
   useEffect(() => {
-    const orderId = localStorage.getItem('klone-pending-order');
-    if (!orderId) return;
-    // Wait for profile to be set (either from cache or Supabase)
-    if (!profile) return;
-    localStorage.removeItem('klone-pending-order');
+    const confirmId = localStorage.getItem('klone-confirm-order');
+    if (!confirmId || !profile) return;
+    localStorage.removeItem('klone-confirm-order');
+
+    // Retrieve the full pending order saved before checkout
+    let pendingOrder: any = null;
+    try {
+      const raw = localStorage.getItem('klone-pending-order');
+      if (raw) pendingOrder = JSON.parse(raw);
+    } catch { /* ignore */ }
+    if (pendingOrder?.id === confirmId) localStorage.removeItem('klone-pending-order');
 
     (async () => {
       try {
-        console.log('Confirming payment for order:', orderId);
-        const [orderRes, txRes] = await Promise.all([
-          supabase.from('orders').update({ payment_status: 'paid', status: 'pending' }).eq('id', orderId),
-          supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', orderId),
-        ]);
-        if (orderRes.error) console.warn('order update error:', orderRes.error.message);
-        if (txRes.error) console.warn('tx update error:', txRes.error.message);
+        console.log('Confirming payment for order:', confirmId);
 
-        // Award K-Coins
-        const newCoins = await awardKCoins(profile.uid, 5);
-        const updatedProfile = { ...profile, kCoins: newCoins };
-        setProfile(updatedProfile);
-        localStorage.setItem('klone-profile', JSON.stringify(updatedProfile));
+        // 1. Insert the order if it wasn't saved before (DB was down during checkout)
+        if (pendingOrder?.id === confirmId) {
+          const { error: insertErr } = await supabase.from('orders').upsert({
+            id: pendingOrder.id,
+            student_id: pendingOrder.student_id,
+            outlet_id: pendingOrder.outlet_id,
+            user_name: pendingOrder.user_name,
+            user_phone: pendingOrder.user_phone,
+            items: pendingOrder.items,
+            total_amount: pendingOrder.total_amount,
+            convenience_fee: pendingOrder.convenience_fee,
+            vendor_amount: pendingOrder.vendor_amount,
+            status: 'pending',
+            payment_status: 'paid',
+            token: pendingOrder.token,
+          }, { onConflict: 'id' });
+          if (insertErr) console.warn('order upsert:', insertErr.message);
+
+          // 2. Insert transaction
+          const { error: txErr } = await supabase.from('transactions').upsert({
+            id: confirmId,
+            flow: 'Food_Order',
+            student_id: pendingOrder.student_id,
+            student_name: pendingOrder.user_name,
+            student_phone: pendingOrder.user_phone,
+            outlet_id: pendingOrder.outlet_id,
+            outlet_name: pendingOrder.outlet_name || '',
+            merchant_vpa: pendingOrder.merchant_vpa || '',
+            total_amount: pendingOrder.total_amount,
+            platform_fee: pendingOrder.convenience_fee,
+            vendor_amount: pendingOrder.vendor_amount,
+            payment_status: 'paid',
+            cashfree_order_id: confirmId,
+            k_coins_awarded: 5,
+            order_id: confirmId,
+            token: pendingOrder.token,
+          }, { onConflict: 'id' });
+          if (txErr) console.warn('tx upsert:', txErr.message);
+        } else {
+          // Order already in DB — just update status
+          await supabase.from('orders').update({ payment_status: 'paid', status: 'pending' }).eq('id', confirmId);
+          await supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', confirmId);
+        }
+
+        // 3. K-Coins will be awarded by the webhook (server-side)
+        // Poll for updated K-Coins (webhook may take a few seconds)
+        let attempts = 0;
+        const pollForKCoins = async () => {
+          const { data: refreshedProfile } = await supabase.from('profiles').select('*').eq('id', profile.uid).single();
+          if (refreshedProfile) {
+            const updated = {
+              uid: refreshedProfile.id,
+              email: refreshedProfile.email,
+              displayName: refreshedProfile.display_name || '',
+              role: refreshedProfile.role,
+              phone: refreshedProfile.phone || '',
+              studentId: refreshedProfile.student_id || '',
+              gender: refreshedProfile.gender || '',
+              hostel: refreshedProfile.hostel || '',
+              kCoins: refreshedProfile.k_coins || 0,
+              streak: refreshedProfile.streak || 0,
+              block: refreshedProfile.block || '',
+              merchantOutletId: refreshedProfile.merchant_outlet_id || '',
+            };
+            setProfile(updated);
+            localStorage.setItem('klone-profile', JSON.stringify(updated));
+            
+            // If K-Coins haven't updated yet and we haven't tried too many times, poll again
+            if (updated.kCoins === profile.kCoins && attempts < 5) {
+              attempts++;
+              setTimeout(pollForKCoins, 2000); // Try again in 2 seconds
+            }
+          }
+        };
+        
+        // Start polling after a short delay to let webhook process
+        setTimeout(pollForKCoins, 1000);
 
         showToast('✓ Payment confirmed! +5 K-Coins earned');
         setView('orders');
@@ -413,6 +487,42 @@ export default function App() {
         console.error('Payment confirmation error:', err);
         showToast('Payment received — check your orders', 'success');
         setView('orders');
+      }
+    })();
+  }, [profile?.uid]);
+
+  // Handle Direct Pay return
+  useEffect(() => {
+    const dpId = localStorage.getItem('klone-confirm-dp');
+    if (!dpId || !profile) return;
+    localStorage.removeItem('klone-confirm-dp');
+
+    (async () => {
+      try {
+        // Update transaction to paid
+        await supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', dpId);
+
+        // Poll for K-Coins update from webhook
+        let attempts = 0;
+        const poll = async () => {
+          const { data: p } = await supabase.from('profiles').select('k_coins').eq('id', profile.uid).single();
+          if (p && (p.k_coins > profile.kCoins || attempts >= 5)) {
+            const updated = { ...profile, kCoins: p.k_coins || profile.kCoins };
+            setProfile(updated);
+            localStorage.setItem('klone-profile', JSON.stringify(updated));
+          } else if (attempts < 5) {
+            attempts++;
+            setTimeout(poll, 2000);
+          }
+        };
+        setTimeout(poll, 1000);
+
+        showToast('✓ Payment sent! +5 K-Coins earned');
+        setView('transactions');
+      } catch (err) {
+        console.error('Direct pay confirmation error:', err);
+        showToast('Payment sent — check transactions', 'success');
+        setView('transactions');
       }
     })();
   }, [profile?.uid]);
@@ -486,6 +596,26 @@ export default function App() {
 
       // Try saving order+transaction to DB now (best-effort, also saved on return)
       insertOrder({ id: orderId, student_id: profile.uid, outlet_id: outlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token }).catch(() => {});
+      
+      // Also create transaction record
+      upsertTransaction({
+        id: orderId,
+        flow: 'Food_Order',
+        student_id: profile.uid,
+        student_name: profile.displayName,
+        student_phone: profile.phone || '',
+        outlet_id: outlet.id,
+        outlet_name: outlet.name,
+        merchant_vpa: outlet.upiId || '',
+        total_amount: totalAmount,
+        platform_fee: PLATFORM_FEE,
+        vendor_amount: cartTotal,
+        payment_status: 'pending',
+        cashfree_order_id: orderId,
+        k_coins_awarded: 0,
+        order_id: orderId,
+        token,
+      }).catch(() => {});
 
       const cashfree = new window.Cashfree({ mode: 'production' });
       await cashfree.checkout({ paymentSessionId: sessionData.payment_session_id, redirectTarget: '_self' });

@@ -1,0 +1,79 @@
+═══════════════════════════════════════════════════════════
+  KL-PAY DEPLOYMENT CHECKLIST - FIX K-COINS ISSUE
+═══════════════════════════════════════════════════════════
+
+⚠️  CRITICAL: Without this, payments work but K-Coins won't update!
+
+┌─────────────────────────────────────────────────────────┐
+│ STEP 1: Get Service Role Key                           │
+└─────────────────────────────────────────────────────────┘
+  1. Open: https://supabase.com/dashboard
+  2. Select your project
+  3. Go to: Settings → API
+  4. Copy the "service_role" key (NOT anon key)
+
+┌─────────────────────────────────────────────────────────┐
+│ STEP 2: Add to Vercel                                  │
+└─────────────────────────────────────────────────────────┘
+  1. Open: https://vercel.com/dashboard
+  2. Select: kl-one project
+  3. Go to: Settings → Environment Variables
+  4. Click: Add New
+  5. Enter:
+     Name: SUPABASE_SERVICE_ROLE_KEY
+     Value: [paste the key from step 1]
+     Environments: ✓ Production ✓ Preview ✓ Development
+  6. Click: Save
+
+┌─────────────────────────────────────────────────────────┐
+│ STEP 3: Commit & Push Code Changes                     │
+└─────────────────────────────────────────────────────────┘
+  Run these commands:
+  
+  cd KL-Pay
+  git add .
+  git commit -m "Fix: K-Coins update and transaction tracking"
+  git push
+
+┌─────────────────────────────────────────────────────────┐
+│ STEP 4: Verify Deployment                              │
+└─────────────────────────────────────────────────────────┘
+  1. Wait for Vercel auto-deploy (~30 seconds)
+  2. Visit: https://kl-one-rho.vercel.app/api/debug
+     Should show: ✅ All systems operational
+  
+  3. Test payment:
+     - Login to app
+     - Order Rs.1 chocolate from Test Canteen
+     - Complete payment
+     - ✓ K-Coins increased by 5
+     - ✓ Transaction appears in history
+     - ✓ Order appears in orders tab
+  
+  4. Check Vercel logs:
+     Should see: ✓ Payment SUCCESS
+                 📦 Order update: ✓ OK
+                 💳 Transaction update: ✓ OK
+                 Awarded 5 K-Coins to [userId]
+
+═══════════════════════════════════════════════════════════
+
+✅ DONE? Your app should now:
+   • Process payments ✓
+   • Update K-Coins ✓
+   • Show transactions ✓
+   • Generate receipts ✓
+   • Track order history ✓
+
+═══════════════════════════════════════════════════════════
+
+🔍 WHAT WAS FIXED:
+
+1. Webhook now requires service role key (no fallback to anon)
+2. Transaction records created during checkout
+3. Frontend polls for K-Coins updates after payment
+4. Better error logging with emoji indicators
+5. Enhanced debug endpoint for troubleshooting
+
+═══════════════════════════════════════════════════════════
+

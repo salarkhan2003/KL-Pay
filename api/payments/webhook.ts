@@ -2,10 +2,20 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://hnezkwnefmjvbdwlyubj.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://hnezkwnefmjvbdwlyubj.supabase.co";
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+if (!SUPABASE_SERVICE_KEY) {
+  console.error("❌ CRITICAL: SUPABASE_SERVICE_ROLE_KEY not set in Vercel environment variables!");
+  console.error("Go to: Vercel Dashboard → Project Settings → Environment Variables");
+  console.error("Add: SUPABASE_SERVICE_ROLE_KEY = your_service_role_key");
+}
+
+const supabase = createClient(
+  SUPABASE_URL, 
+  SUPABASE_SERVICE_KEY || "",
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
 
 const KCOINS_PER_ORDER = 5;
 
@@ -94,19 +104,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`Order: ${orderId}, Status: ${paymentStatus}, Customer: ${customerId}`);
 
     if (paymentStatus === "SUCCESS" && orderId) {
+      console.log("✓ Payment SUCCESS - Processing order:", orderId);
+      
+      // Update order and transaction status
       const [orderUpdate, txUpdate] = await Promise.all([
         supabase.from("orders").update({ payment_status: "paid", status: "pending" }).eq("id", orderId),
         supabase.from("transactions").update({ payment_status: "paid", k_coins_awarded: KCOINS_PER_ORDER }).eq("cashfree_order_id", orderId),
       ]);
-      console.log("Order update:", orderUpdate.error?.message || "OK");
-      console.log("TX update:", txUpdate.error?.message || "OK");
+      
+      console.log("📦 Order update:", orderUpdate.error?.message || "✓ OK");
+      console.log("💳 Transaction update:", txUpdate.error?.message || "✓ OK");
 
-      if (customerId) await awardKCoins(customerId, KCOINS_PER_ORDER);
-
-      if (customerEmail) {
-        try { await sendOrderReceipt({ customerEmail, studentName, orderToken, outletName, amount, orderId }); }
-        catch (err) { console.warn("Courier receipt failed:", err); }
+      // Award K-Coins to customer
+      if (customerId) {
+        await awardKCoins(customerId, KCOINS_PER_ORDER);
+      } else {
+        console.warn("⚠️ No customerId provided - cannot award K-Coins");
       }
+
+      // Send receipt email
+      if (customerEmail) {
+        try { 
+          await sendOrderReceipt({ customerEmail, studentName, orderToken, outletName, amount, orderId }); 
+          console.log("📧 Receipt sent to:", customerEmail);
+        }
+        catch (err) { console.warn("📧 Courier receipt failed:", err); }
+      }
+    } else {
+      console.log(`⏳ Payment status: ${paymentStatus} - No action taken`);
     }
 
     res.json({ received: true, orderId, paymentStatus });

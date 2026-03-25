@@ -5,7 +5,7 @@ const secretKey = process.env.CASHFREE_SECRET_KEY || "";
 
 export const ADMIN_VPA    = process.env.ADMIN_VPA || "7993547438@kotak811";
 export const PLATFORM_FEE = 2.5;
-export const APP_URL      = (process.env.APP_URL || "https://kl-one-rho.vercel.app").replace(/\/$/, "");
+export const APP_URL = (process.env.APP_URL || "https://kl-one-rho.vercel.app").replace(/\/+$/, "");
 
 export async function createSplitOrder(params: {
   orderId: string;
