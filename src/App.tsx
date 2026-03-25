@@ -425,17 +425,30 @@ export default function App() {
     try {
       const res = await fetch('/api/payments/create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: totalAmount, customerId: profile.uid, orderId, customerEmail: profile.email, customerName: profile.displayName, customerPhone: profile.phone || '9999999999', merchantVpa: selectedOutlet.upiId, outletName: selectedOutlet.name }),
+        body: JSON.stringify({ amount: totalAmount, customerId: profile.uid, orderId, customerEmail: profile.email, customerName: profile.displayName, customerPhone: profile.phone || '9999999999', merchantVpa: selectedOutlet.upiId, outletName: selectedOutlet.name, token }),
       });
       const sessionData = await res.json();
-      if (!sessionData.payment_session_id) throw new Error(sessionData.error || 'Session creation failed');
+      if (!sessionData.payment_session_id) {
+        const errMsg = typeof sessionData.error === 'string'
+          ? sessionData.error
+          : JSON.stringify(sessionData.error || sessionData);
+        throw new Error(errMsg);
+      }
 
       await insertOrder({ id: orderId, student_id: profile.uid, outlet_id: selectedOutlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token, created_at: new Date().toISOString() });
 
       const cashfree = new window.Cashfree({ mode: 'production' });
       await cashfree.checkout({ paymentSessionId: sessionData.payment_session_id, redirectTarget: '_self' });
       setCart([]); setSelectedOutlet(null);
-    } catch (err) { console.error('Checkout:', err); showToast('Payment initialization failed', 'error'); }
+    } catch (err: any) {
+      console.error('Checkout:', err);
+      const msg = err?.message || 'Payment initialization failed';
+      // Show a readable error — strip JSON noise
+      const display = msg.includes('appId') || msg.includes('authentication')
+        ? 'Payment gateway not configured. Contact support.'
+        : msg.length > 80 ? 'Payment failed. Please try again.' : msg;
+      showToast(display, 'error');
+    }
   };
 
   // ── Merchant / Admin helpers ──────────────────────────────────────────────

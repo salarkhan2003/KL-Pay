@@ -20,6 +20,10 @@ export async function createSplitOrder(params: {
   note?: string;
   orderTags?: Record<string, string>;
 }) {
+  if (!appId || !secretKey) {
+    throw new Error("Cashfree credentials not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY in Vercel environment variables.");
+  }
+
   const response = await fetch(
     `https://api.cashfree.com/pg/orders`,
     {
