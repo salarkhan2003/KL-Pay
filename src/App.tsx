@@ -354,24 +354,17 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedOutlet) return;
-    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data, error }) => {
-      if (data && data.length > 0) {
-        setMenuItems(data.map(rowToMenuItem));
-      } else if (!error) {
-        // Empty — show seed menu as fallback
-        setMenuItems(SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
-          id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
-          price: m.price, imageUrl: m.image_url, category: m.category,
-          isAvailable: m.is_available, prepTime: m.prep_time,
-        })));
-      } else {
-        // DB error — show seed menu so students can still browse
-        setMenuItems(SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
-          id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
-          price: m.price, imageUrl: m.image_url, category: m.category,
-          isAvailable: m.is_available, prepTime: m.prep_time,
-        })));
-      }
+    // Show seed menu immediately so there's no blank flash
+    const seedFallback = SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
+      id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
+      price: m.price, imageUrl: m.image_url, category: m.category,
+      isAvailable: m.is_available, prepTime: m.prep_time,
+    }));
+    if (seedFallback.length > 0) setMenuItems(seedFallback);
+
+    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => {
+      if (data && data.length > 0) setMenuItems(data.map(rowToMenuItem));
+      // else keep the seed fallback already shown
     });
     const ch = supabase.channel(`menu_view_${selectedOutlet.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
       supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });

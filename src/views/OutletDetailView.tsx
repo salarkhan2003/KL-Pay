@@ -46,7 +46,11 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({ outlet, menu
       <div className="space-y-6">
         <h3 className="text-display text-xl font-black">Menu</h3>
         <div className="grid gap-4">
-          {menuItems.map((item, idx) => (
+          {menuItems.length === 0 ? (
+            <div className="text-center py-12 glass-frosted rounded-[28px] border border-white/10">
+              <p className="text-white/30 font-bold text-sm">No items available</p>
+            </div>
+          ) : menuItems.map((item, idx) => (
             <GlassCard key={item.id} delay={idx * 0.05} className="p-4">
               <div className="flex gap-4">
                 <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/5 border border-white/10">
