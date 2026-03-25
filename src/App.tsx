@@ -429,7 +429,10 @@ export default function App() {
   };
 
   const updateCartQuantity = (itemId: string, delta: number) =>
-    setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
+    setCart(prev => {
+      const updated = prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity + delta } : i);
+      return updated.filter(i => i.quantity > 0);
+    });
 
   const removeItemFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.quantity, 0), [cart]);
@@ -644,7 +647,7 @@ export default function App() {
           <main className="flex-1 p-6 lg:p-10 max-w-3xl w-full mx-auto pb-28 lg:pb-10">
             <AnimatePresence mode="wait">
               {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
-              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} cart={cart} onBack={() => setView('home')} onAddToCart={addToCart} onUpdateQuantity={updateCartQuantity} onGoToCart={() => setView('cart')} />}
+              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} cart={cart} onBack={() => setView('home')} onAddToCart={addToCart} onUpdateQuantity={updateCartQuantity} onRemoveFromCart={removeItemFromCart} onGoToCart={() => setView('cart')} />}
               {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
               {view === 'orders' && <OrdersView orders={orders} outlets={outlets} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
               {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}

@@ -13,11 +13,12 @@ interface OutletDetailViewProps {
   onBack: () => void;
   onAddToCart: (item: MenuItem) => void;
   onUpdateQuantity: (id: string, delta: number) => void;
+  onRemoveFromCart: (id: string) => void;
   onGoToCart: () => void;
 }
 
 export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
-  outlet, menuItems, cart, onBack, onAddToCart, onUpdateQuantity, onGoToCart,
+  outlet, menuItems, cart, onBack, onAddToCart, onUpdateQuantity, onRemoveFromCart, onGoToCart,
 }) => {
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -76,8 +77,8 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
                         <p className="text-lg font-black text-white">₹{item.price}</p>
                         {inCart ? (
                           <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1 border border-white/10">
-                            <button onClick={() => onUpdateQuantity(item.id, -1)}
-                              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all text-white">
+                            <button onClick={() => inCart.quantity === 1 ? onRemoveFromCart(item.id) : onUpdateQuantity(item.id, -1)}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all text-red-400">
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <span className="font-black text-sm w-5 text-center">{inCart.quantity}</span>
