@@ -150,7 +150,8 @@ export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ 
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   const filtered = transactions.filter(t => filter === 'all' || t.flow === filter);
-  const totalSpent = transactions.filter(t => t.paymentStatus === 'paid').reduce((a, t) => a + t.totalAmount, 0);
+  // Count paid + pending (pending = payment initiated, webhook may not have confirmed yet)
+  const totalSpent = transactions.filter(t => t.paymentStatus === 'paid' || t.paymentStatus === 'pending').reduce((a, t) => a + t.totalAmount, 0);
   const totalCoins = transactions.reduce((a, t) => a + (t.kCoinsAwarded || 0), 0);
 
   return (

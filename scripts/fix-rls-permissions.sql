@@ -5,7 +5,7 @@
 -- ============================================================
 
 -- Drop ALL existing policies first (clean slate)
-do $$ 
+do $$
 declare
   r record;
 begin
@@ -40,12 +40,13 @@ alter table public.transactions    enable row level security;
 alter table public.support_tickets enable row level security;
 
 -- Create fully open policies (no auth required — campus internal app)
-create policy "allow_all_profiles"        on public.profiles        for all using (true) with check (true);
-create policy "allow_all_outlets"         on public.outlets         for all using (true) with check (true);
-create policy "allow_all_menu_items"      on public.menu_items      for all using (true) with check (true);
-create policy "allow_all_orders"          on public.orders          for all using (true) with check (true);
-create policy "allow_all_transactions"    on public.transactions    for all using (true) with check (true);
-create policy "allow_all_support_tickets" on public.support_tickets for all using (true) with check (true);
+-- Explicitly grant to anon role so the webhook fallback anon key also works
+create policy "allow_all_profiles"        on public.profiles        for all to anon, authenticated, service_role using (true) with check (true);
+create policy "allow_all_outlets"         on public.outlets         for all to anon, authenticated, service_role using (true) with check (true);
+create policy "allow_all_menu_items"      on public.menu_items      for all to anon, authenticated, service_role using (true) with check (true);
+create policy "allow_all_orders"          on public.orders          for all to anon, authenticated, service_role using (true) with check (true);
+create policy "allow_all_transactions"    on public.transactions    for all to anon, authenticated, service_role using (true) with check (true);
+create policy "allow_all_support_tickets" on public.support_tickets for all to anon, authenticated, service_role using (true) with check (true);
 
 -- Verify policies were created
 select tablename, policyname, cmd, qual 

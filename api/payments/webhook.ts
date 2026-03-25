@@ -4,16 +4,16 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://hnezkwnefmjvbdwlyubj.supabase.co";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_ANON_KEY = "sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi";
 
 if (!SUPABASE_SERVICE_KEY) {
-  console.error("❌ CRITICAL: SUPABASE_SERVICE_ROLE_KEY not set in Vercel environment variables!");
-  console.error("Go to: Vercel Dashboard → Project Settings → Environment Variables");
-  console.error("Add: SUPABASE_SERVICE_ROLE_KEY = your_service_role_key");
+  console.warn("⚠️ SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon key. K-Coins updates may fail if RLS blocks anon writes.");
+  console.warn("Fix: Vercel Dashboard → Project Settings → Environment Variables → Add SUPABASE_SERVICE_ROLE_KEY");
 }
 
 const supabase = createClient(
   SUPABASE_URL, 
-  SUPABASE_SERVICE_KEY || "",
+  SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY,
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 

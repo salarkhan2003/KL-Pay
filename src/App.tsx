@@ -299,10 +299,9 @@ export default function App() {
 
   useEffect(() => {
     if (!profile) return;
-    supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setOrders(data.map(rowToOrder)); });
-    const ch = supabase.channel(`orders_student_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `student_id=eq.${profile.uid}` }, () => {
-      supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setOrders(data.map(rowToOrder)); });
-    }).subscribe();
+    const fetchOrders = () => supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setOrders(data.map(rowToOrder)); });
+    fetchOrders();
+    const ch = supabase.channel(`orders_student_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `student_id=eq.${profile.uid}` }, fetchOrders).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [profile?.uid]);
 
@@ -335,10 +334,9 @@ export default function App() {
 
   useEffect(() => {
     if (!profile) return;
-    supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
-    const ch = supabase.channel(`tx_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `student_id=eq.${profile.uid}` }, () => {
-      supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
-    }).subscribe();
+    const fetchTx = () => supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
+    fetchTx();
+    const ch = supabase.channel(`tx_${profile.uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `student_id=eq.${profile.uid}` }, fetchTx).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [profile?.uid]);
 
@@ -449,7 +447,15 @@ export default function App() {
           if (tErr) console.error('tx update failed:', tErr.message, tErr.code);
         }
 
-        // 3. K-Coins will be awarded by the webhook (server-side)
+        // 3. Force-refresh orders and transactions from DB immediately
+        const [{ data: freshOrders }, { data: freshTx }] = await Promise.all([
+          supabase.from('orders').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }),
+          supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false }),
+        ]);
+        if (freshOrders) setOrders(freshOrders.map(rowToOrder));
+        if (freshTx) setTransactions(freshTx.map(rowToTransaction));
+
+        // 4. K-Coins will be awarded by the webhook (server-side)
         // Poll for updated K-Coins (webhook may take a few seconds)
         let attempts = 0;
         const pollForKCoins = async () => {
@@ -503,6 +509,10 @@ export default function App() {
       try {
         // Update transaction to paid
         await supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', dpId);
+
+        // Force-refresh transactions from DB
+        const { data: freshTx } = await supabase.from('transactions').select('*').eq('student_id', profile.uid).order('created_at', { ascending: false });
+        if (freshTx) setTransactions(freshTx.map(rowToTransaction));
 
         // Poll for K-Coins update from webhook
         let attempts = 0;
