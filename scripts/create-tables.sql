@@ -1,14 +1,18 @@
 -- ============================================================
--- KL-Pay Supabase Schema  (safe to re-run — idempotent)
--- Run in: Supabase Dashboard → SQL Editor → New Query
+-- KL-Pay Supabase Schema — FULL RESET
+-- Paste this ENTIRE file into Supabase SQL Editor → Run
+-- This drops everything and rebuilds correctly.
 -- ============================================================
 
-create extension if not exists "pgcrypto";
+-- Step 1: Drop all existing tables (cascade removes foreign keys too)
+drop table if exists public.support_tickets cascade;
+drop table if exists public.transactions    cascade;
+drop table if exists public.orders          cascade;
+drop table if exists public.menu_items      cascade;
+drop table if exists public.outlets         cascade;
+drop table if exists public.profiles        cascade;
 
--- ── DROP and recreate profiles with correct schema ────────
--- The old SQL had a bug where `id` was outside CREATE TABLE.
--- This fixes it by dropping and recreating cleanly.
-drop table if exists public.profiles cascade;
+-- Step 2: Create tables with correct schema
 
 create table public.profiles (
   id                 text primary key,
@@ -27,8 +31,6 @@ create table public.profiles (
   updated_at         timestamptz default now()
 );
 
--- ── outlets ───────────────────────────────────────────────
-drop table if exists public.outlets cascade;
 create table public.outlets (
   id          text primary key,
   name        text not null,
@@ -45,8 +47,6 @@ create table public.outlets (
   updated_at  timestamptz default now()
 );
 
--- ── menu_items ────────────────────────────────────────────
-drop table if exists public.menu_items cascade;
 create table public.menu_items (
   id           text primary key,
   outlet_id    text not null references public.outlets(id) on delete cascade,
@@ -61,8 +61,6 @@ create table public.menu_items (
   updated_at   timestamptz default now()
 );
 
--- ── orders ────────────────────────────────────────────────
-drop table if exists public.orders cascade;
 create table public.orders (
   id               text primary key,
   student_id       text not null,
@@ -81,8 +79,6 @@ create table public.orders (
   created_at       timestamptz default now()
 );
 
--- ── transactions ──────────────────────────────────────────
-drop table if exists public.transactions cascade;
 create table public.transactions (
   id                   text primary key,
   flow                 text not null check (flow in ('Food_Order','Peer_to_Merchant_Pay')),
@@ -106,8 +102,6 @@ create table public.transactions (
   created_at           timestamptz default now()
 );
 
--- ── support_tickets ───────────────────────────────────────
-drop table if exists public.support_tickets cascade;
 create table public.support_tickets (
   id         text primary key,
   user_id    text not null,
@@ -117,10 +111,8 @@ create table public.support_tickets (
   created_at timestamptz default now()
 );
 
--- ── Grant anon + authenticated full access ────────────────
--- This is required for the Supabase anon key to work with RLS policies.
+-- Step 3: Grant access to anon and authenticated roles
 grant usage on schema public to anon, authenticated;
-
 grant all on public.profiles        to anon, authenticated;
 grant all on public.outlets         to anon, authenticated;
 grant all on public.menu_items      to anon, authenticated;
@@ -128,7 +120,7 @@ grant all on public.orders          to anon, authenticated;
 grant all on public.transactions    to anon, authenticated;
 grant all on public.support_tickets to anon, authenticated;
 
--- ── Row Level Security ────────────────────────────────────
+-- Step 4: Enable Row Level Security
 alter table public.profiles        enable row level security;
 alter table public.outlets         enable row level security;
 alter table public.menu_items      enable row level security;
@@ -136,7 +128,7 @@ alter table public.orders          enable row level security;
 alter table public.transactions    enable row level security;
 alter table public.support_tickets enable row level security;
 
--- Drop existing policies so re-runs don't error
+-- Step 5: Drop old policies and recreate
 do $$ begin
   drop policy if exists "profiles_select" on public.profiles;
   drop policy if exists "profiles_insert" on public.profiles;
@@ -161,35 +153,29 @@ do $$ begin
   drop policy if exists "support_update"  on public.support_tickets;
 end $$;
 
--- Open policies — allow all for anon/authenticated (app handles auth logic)
 create policy "profiles_select" on public.profiles for select using (true);
 create policy "profiles_insert" on public.profiles for insert with check (true);
 create policy "profiles_update" on public.profiles for update using (true);
-
-create policy "outlets_select"  on public.outlets for select using (true);
-create policy "outlets_insert"  on public.outlets for insert with check (true);
-create policy "outlets_update"  on public.outlets for update using (true);
-create policy "outlets_delete"  on public.outlets for delete using (true);
-
+create policy "outlets_select"  on public.outlets  for select using (true);
+create policy "outlets_insert"  on public.outlets  for insert with check (true);
+create policy "outlets_update"  on public.outlets  for update using (true);
+create policy "outlets_delete"  on public.outlets  for delete using (true);
 create policy "menu_select"     on public.menu_items for select using (true);
 create policy "menu_insert"     on public.menu_items for insert with check (true);
 create policy "menu_update"     on public.menu_items for update using (true);
 create policy "menu_delete"     on public.menu_items for delete using (true);
-
-create policy "orders_select"   on public.orders for select using (true);
-create policy "orders_insert"   on public.orders for insert with check (true);
-create policy "orders_update"   on public.orders for update using (true);
-create policy "orders_delete"   on public.orders for delete using (true);
-
+create policy "orders_select"   on public.orders   for select using (true);
+create policy "orders_insert"   on public.orders   for insert with check (true);
+create policy "orders_update"   on public.orders   for update using (true);
+create policy "orders_delete"   on public.orders   for delete using (true);
 create policy "tx_select"       on public.transactions for select using (true);
 create policy "tx_insert"       on public.transactions for insert with check (true);
 create policy "tx_update"       on public.transactions for update using (true);
-
 create policy "support_select"  on public.support_tickets for select using (true);
 create policy "support_insert"  on public.support_tickets for insert with check (true);
 create policy "support_update"  on public.support_tickets for update using (true);
 
--- ── Realtime ──────────────────────────────────────────────
+-- Step 6: Enable Realtime
 do $$ begin
   begin alter publication supabase_realtime add table public.outlets;      exception when others then null; end;
   begin alter publication supabase_realtime add table public.menu_items;   exception when others then null; end;
@@ -197,7 +183,7 @@ do $$ begin
   begin alter publication supabase_realtime add table public.transactions; exception when others then null; end;
 end $$;
 
--- ── Seed outlets ──────────────────────────────────────────
+-- Step 7: Seed data
 insert into public.outlets (id, name, description, image_url, is_open, merchant_id, block_name, category, upi_id, timings, rating)
 values
   ('friends-canteen', 'Friend''s Canteen', 'Authentic biryani and SP Curry specials.',
@@ -208,7 +194,6 @@ values
    true, '', 'Tulip Hostel', 'Meals', 'test.canteen@okaxis', '24/7', 5.0)
 on conflict (id) do nothing;
 
--- ── Seed menu items ───────────────────────────────────────
 insert into public.menu_items (id, outlet_id, name, description, price, image_url, category, is_available, prep_time)
 values
   ('friends-canteen_biryani',    'friends-canteen', 'Biryani',          'Classic aromatic biryani with raita',
