@@ -105,7 +105,13 @@ export default function App() {
   const [view, setView] = useState<string>('home');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [outlets, setOutlets] = useState<Outlet[]>(() =>
+    SEED_OUTLETS.map(o => ({
+      id: o.id, name: o.name, description: o.description, imageUrl: o.image_url,
+      isOpen: o.is_open, merchantId: o.merchant_id, blockName: o.block_name,
+      category: o.category, upiId: o.upi_id, timings: o.timings, rating: o.rating,
+    }))
+  );
   const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);

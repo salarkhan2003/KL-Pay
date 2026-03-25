@@ -36,7 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ outlets, onSelectOutlet }) =
         <div className="grid gap-4">
           {visibleOutlets.length === 0 ? (
             <div className="text-center py-12 glass-frosted rounded-3xl border border-white/10">
-              <p className="text-white/40 font-medium">Loading canteens...</p>
+              <p className="text-white/40 font-medium">No canteens available</p>
             </div>
           ) : (
             visibleOutlets.map((outlet, idx) => (
