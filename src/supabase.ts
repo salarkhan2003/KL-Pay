@@ -4,7 +4,13 @@ const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL     || 'https://hnezk
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storageKey: 'klone-auth',
+    storage: window.localStorage,
+  },
 });
 
 export function extractStudentId(email: string): string | null {

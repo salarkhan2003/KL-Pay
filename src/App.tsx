@@ -67,14 +67,12 @@ const SEED_MENU = [
 ];
 
 async function ensureCanteensSeeded() {
-  try {
-    for (const o of SEED_OUTLETS) await upsertOutlet(o);
-    for (const m of SEED_MENU) await upsertMenuItem(m);
-  } catch (e: any) {
-    // Tables don't exist yet — user needs to run the SQL migration
-    if (e?.code === 'PGRST205' || e?.message?.includes('schema cache')) return;
-    console.warn('seed:', e);
-  }
+  const results = await Promise.allSettled([
+    ...SEED_OUTLETS.map(o => upsertOutlet(o)),
+    ...SEED_MENU.map(m => upsertMenuItem(m)),
+  ]);
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length) console.warn(`seed: ${failed.length} items failed (DB may need SQL migration)`);
 }
 
 // ── Desktop sidebar navigation ────────────────────────────────────────────────
@@ -147,15 +145,31 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // ── Persist profile across refreshes ─────────────────────────────────────
+  const PROFILE_KEY = 'klone-profile';
+  const persistProfile = (p: UserProfile | null) => {
+    if (p) localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    else localStorage.removeItem(PROFILE_KEY);
+    setProfile(p);
+  };
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     let settled = false;
     const finish = () => { if (!settled) { settled = true; setLoading(false); } };
 
+    // Restore from localStorage immediately so UI doesn't flash login screen
+    const cached = localStorage.getItem(PROFILE_KEY);
+    if (cached) {
+      try {
+        const p: UserProfile = JSON.parse(cached);
+        setProfile(p);
+        setView(p.role === 'merchant' ? 'merchant' : p.role === 'admin' ? 'admin' : 'home');
+      } catch { localStorage.removeItem(PROFILE_KEY); }
+    }
+
     // Hard timeout — show app in 3s no matter what
     const timeout = setTimeout(finish, 3000);
-
-    // Track if getSession already handled a user so onAuthStateChange doesn't double-fire
     let sessionHandled = false;
 
     (async () => {
@@ -165,10 +179,13 @@ export default function App() {
           sessionHandled = true;
           try {
             const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
-            setProfile(p);
+            persistProfile(p);
             if (p.role === 'merchant') setView('merchant');
             else if (p.role === 'admin') setView('admin');
+            else setView('home');
           } catch (e) { console.warn('Profile load:', e); }
+        } else if (!cached) {
+          // No session and no cache — show login
         }
       } catch (e) { console.warn('getSession:', e); }
       clearTimeout(timeout);
@@ -177,31 +194,33 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        if (sessionHandled) { sessionHandled = false; return; } // skip duplicate
+        if (sessionHandled) { sessionHandled = false; return; }
         try {
           const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
-          setProfile(p); setIsSkipped(false);
+          persistProfile(p); setIsSkipped(false);
           if (p.role === 'merchant') setView('merchant');
           else if (p.role === 'admin') setView('admin');
+          else setView('home');
         } catch (e) { console.warn('Profile save:', e); }
         finish();
       } else if (event === 'SIGNED_OUT') {
-        setProfile(null); setIsSkipped(false); setView('home'); setCart([]);
+        persistProfile(null); setIsSkipped(false); setView('home'); setCart([]);
       }
+      // Ignore TOKEN_REFRESHED — don't log out on token refresh failures
     });
     return () => subscription.unsubscribe();
   }, []);
 
   const logout = async () => {
-    setProfile(null); setIsSkipped(false); setView('home'); setCart([]);
+    persistProfile(null); setIsSkipped(false); setView('home'); setCart([]);
     await signOutUser().catch(() => {});
   };
 
   const devLogin = async (role: 'student' | 'merchant' | 'admin') => {
     const names = { student: 'Test Student', merchant: 'Test Merchant', admin: 'Salar Khan (Admin)' };
     const p: UserProfile = { uid: `dev_${role}_${Date.now()}`, email: role === 'admin' ? 'salarkhanpatan7861@gmail.com' : `dev_${role}@kluniversity.in`, displayName: names[role], role, kCoins: role === 'student' ? 120 : 0, streak: role === 'student' ? 5 : 0, block: 'CSE', phone: '9999999999' };
-    setProfile(p); setIsSkipped(false);
-    await ensureCanteensSeeded();
+    persistProfile(p); setIsSkipped(false);
+    ensureCanteensSeeded().catch(() => {});
     setView(role === 'merchant' ? 'merchant' : role === 'admin' ? 'admin' : 'home');
   };
 
@@ -216,8 +235,7 @@ export default function App() {
       role: 'merchant', kCoins: 0, streak: 0, block: 'CSE',
       merchantOutletId: outletId,
     };
-    setProfile(p); setIsSkipped(false);
-    // Seed in background, don't await
+    persistProfile(p); setIsSkipped(false);
     ensureCanteensSeeded().catch(() => {});
     setView('merchant');
     return true;
@@ -228,8 +246,9 @@ export default function App() {
     const fieldMap: Record<string, string> = { displayName: 'display_name', phone: 'phone', kCoins: 'k_coins', streak: 'streak', merchantOutletId: 'merchant_outlet_id' };
     const dbUpdates: Record<string, any> = {};
     for (const [k, v] of Object.entries(updates)) { if (fieldMap[k]) dbUpdates[fieldMap[k]] = v; }
-    if (Object.keys(dbUpdates).length) await updateProfileFields(profile.uid, dbUpdates);
-    setProfile(prev => prev ? { ...prev, ...updates } : null);
+    if (Object.keys(dbUpdates).length) updateProfileFields(profile.uid, dbUpdates).catch(() => {});
+    const updated = { ...profile, ...updates };
+    persistProfile(updated);
   };
 
   const assignOutlet = async (outletId: string) => {
@@ -242,8 +261,12 @@ export default function App() {
   // ── Seed canteens ─────────────────────────────────────────────────────────
   const seedCanteenData = async () => {
     setIsSeeding(true);
-    await ensureCanteensSeeded();
+    try { await ensureCanteensSeeded(); } catch (e) { console.warn('seed:', e); }
+    // Reload outlets after seeding
+    const { data } = await supabase.from('outlets').select('*').catch(() => ({ data: null }));
+    if (data && data.length > 0) setOutlets(data.map(rowToOutlet));
     setIsSeeding(false);
+    showToast('Campus data seeded');
   };
 
   // ── Supabase realtime listeners ───────────────────────────────────────────
@@ -517,8 +540,15 @@ export default function App() {
     <LoginPage
       onSkip={() => setIsSkipped(true)}
       onMagicLinkComplete={async (uid, email, phone) => {
-        const p = await saveUserProfile(uid, email, phone, {});
-        setProfile(p);
+        try {
+          const p = await saveUserProfile(uid, email, phone, {});
+          persistProfile(p);
+          if (p.role === 'merchant') setView('merchant');
+          else if (p.role === 'admin') setView('admin');
+          else setView('home');
+        } catch (e) {
+          console.warn('onMagicLinkComplete:', e);
+        }
       }}
       onDevLogin={devLogin}
       onMerchantCodeLogin={merchantCodeLogin}
