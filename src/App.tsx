@@ -436,24 +436,34 @@ export default function App() {
 
   // ── Checkout ─────────────────────────────────────────────────────────────
   const handleCheckout = async () => {
-    if (!profile || !selectedOutlet || cart.length === 0) return;
+    if (!profile || cart.length === 0) return;
+    // Resolve outlet — from selectedOutlet or by matching cart items to known outlets
+    const outlet = selectedOutlet || outlets.find(o =>
+      cart.some(c => {
+        const seedItem = SEED_MENU.find(m => m.id === c.id);
+        return seedItem?.outlet_id === o.id;
+      })
+    ) || outlets[0];
+    if (!outlet) { showToast('No outlet selected', 'error'); return; }
+
     const orderId = `KLP_${Date.now()}`;
     const totalAmount = Math.round((cartTotal + PLATFORM_FEE) * 100) / 100;
     const token = Math.floor(1000 + Math.random() * 9000).toString();
     try {
       const res = await fetch('/api/payments/create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: totalAmount, customerId: profile.uid, orderId, customerEmail: profile.email, customerName: profile.displayName, customerPhone: profile.phone || '9999999999', merchantVpa: selectedOutlet.upiId, outletName: selectedOutlet.name, token }),
+        body: JSON.stringify({ amount: totalAmount, customerId: profile.uid, orderId, customerEmail: profile.email, customerName: profile.displayName, customerPhone: profile.phone || '9999999999', merchantVpa: outlet.upiId, outletName: outlet.name, token }),
       });
       const sessionData = await res.json();
       if (!sessionData.payment_session_id) {
-        const errMsg = typeof sessionData.error === 'string'
-          ? sessionData.error
-          : JSON.stringify(sessionData.error || sessionData);
+        const errMsg = typeof sessionData.error === 'string' ? sessionData.error : JSON.stringify(sessionData.error || sessionData);
         throw new Error(errMsg);
       }
-
-      await insertOrder({ id: orderId, student_id: profile.uid, outlet_id: selectedOutlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token, created_at: new Date().toISOString() });
+      // Save order to DB (best-effort)
+      insertOrder({ id: orderId, student_id: profile.uid, outlet_id: outlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token, created_at: new Date().toISOString() }).catch(() => {});
+      // Save transaction to DB (best-effort)
+      const { upsertTransaction } = await import('./supabase');
+      upsertTransaction({ id: orderId, flow: 'Food_Order', student_id: profile.uid, student_name: profile.displayName, student_phone: profile.phone || '', outlet_id: outlet.id, outlet_name: outlet.name, merchant_vpa: outlet.upiId, total_amount: totalAmount, platform_fee: PLATFORM_FEE, vendor_amount: cartTotal, payment_status: 'pending', cashfree_order_id: orderId, k_coins_awarded: 0, order_id: orderId, token, created_at: new Date().toISOString() }).catch(() => {});
 
       const cashfree = new window.Cashfree({ mode: 'production' });
       await cashfree.checkout({ paymentSessionId: sessionData.payment_session_id, redirectTarget: '_self' });
@@ -461,10 +471,9 @@ export default function App() {
     } catch (err: any) {
       console.error('Checkout:', err);
       const msg = err?.message || 'Payment initialization failed';
-      // Show a readable error — strip JSON noise
-      const display = msg.includes('appId') || msg.includes('authentication')
-        ? 'Payment gateway not configured. Contact support.'
-        : msg.length > 80 ? 'Payment failed. Please try again.' : msg;
+      const display = msg.includes('appId') || msg.includes('authentication') || msg.includes('credentials')
+        ? 'Payment gateway not configured. Set CASHFREE_APP_ID & CASHFREE_SECRET_KEY in Vercel.'
+        : msg.length > 100 ? 'Payment failed. Please try again.' : msg;
       showToast(display, 'error');
     }
   };
@@ -635,9 +644,9 @@ export default function App() {
           <main className="flex-1 p-6 lg:p-10 max-w-3xl w-full mx-auto pb-28 lg:pb-10">
             <AnimatePresence mode="wait">
               {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
-              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} onBack={() => setView('home')} onAddToCart={addToCart} />}
+              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} cart={cart} onBack={() => setView('home')} onAddToCart={addToCart} onUpdateQuantity={updateCartQuantity} onGoToCart={() => setView('cart')} />}
               {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
-              {view === 'orders' && <OrdersView orders={orders} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
+              {view === 'orders' && <OrdersView orders={orders} outlets={outlets} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
               {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
               {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} onAssignOutlet={assignOutlet} />}
               {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onBack={() => setView('merchant')} />}
