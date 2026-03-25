@@ -94,8 +94,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
     if (!loginEmail || !loginPassword) { setLoginError('Enter your email and password.'); return; }
     setLoginLoading(true);
     try {
-      const profile = await loginUser(loginEmail.trim(), loginPassword);
-      await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
+      // Sign in with Supabase auth — this is the critical part
+      const { data, error } = await (await import('../supabase')).supabase.auth.signInWithPassword({
+        email: loginEmail.trim().toLowerCase(),
+        password: loginPassword,
+      });
+      if (error) throw error;
+      // Profile save is best-effort — don't block login on it
+      const uid = data.user.id;
+      const email = data.user.email || loginEmail;
+      try {
+        const profile = await Promise.race([
+          loginUser(email, loginPassword),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+        ]);
+        await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
+      } catch (profileErr: any) {
+        if (profileErr?.message === 'timeout') {
+          // Profile save timed out — still log the user in with basic info
+          await onMagicLinkComplete(uid, email, '');
+        } else {
+          throw profileErr;
+        }
+      }
     } catch (err: any) {
       const msg = getAuthErrorMessage(err);
       setLoginError(msg);
@@ -247,19 +268,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                   {/* LOGIN */}
                   {tab === 'login' && (
                     <motion.div key="login" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-                      <InputField icon={<Mail className="w-5 h-5" />} type="email" placeholder="Email address"
-                        value={loginEmail} onChange={v => setLoginEmail(v)} onEnter={handleLogin} />
-                      <PasswordField placeholder="Password" value={loginPassword}
-                        show={showLoginPw} onToggle={() => setShowLoginPw(v => !v)}
-                        onChange={v => setLoginPassword(v)} onEnter={handleLogin} />
-                      {loginError && <ErrorBox message={loginError} />}
-                      <ClayButton onClick={handleLogin} className="w-full h-14" disabled={loginLoading || loginCooldown > 0}>
-                        {loginLoading
-                          ? <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                          : loginCooldown > 0
-                            ? <span className="flex items-center justify-center gap-2"><Timer className="w-4 h-4" /> Retry in {loginCooldown}s</span>
-                            : 'Sign In'}
-                      </ClayButton>
+                      <form onSubmit={e => { e.preventDefault(); handleLogin(); }} className="space-y-4">
+                        <InputField icon={<Mail className="w-5 h-5" />} type="email" placeholder="Email address"
+                          value={loginEmail} onChange={v => setLoginEmail(v)} onEnter={handleLogin} />
+                        <PasswordField placeholder="Password" value={loginPassword}
+                          show={showLoginPw} onToggle={() => setShowLoginPw(v => !v)}
+                          onChange={v => setLoginPassword(v)} onEnter={handleLogin} />
+                        {loginError && <ErrorBox message={loginError} />}
+                        <ClayButton type="submit" onClick={handleLogin} className="w-full h-14" disabled={loginLoading || loginCooldown > 0}>
+                          {loginLoading
+                            ? <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                            : loginCooldown > 0
+                              ? <span className="flex items-center justify-center gap-2"><Timer className="w-4 h-4" /> Retry in {loginCooldown}s</span>
+                              : 'Sign In'}
+                        </ClayButton>
+                      </form>
                     </motion.div>
                   )}
 

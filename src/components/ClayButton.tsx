@@ -6,8 +6,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const ClayButton = ({ children, onClick, className, variant = 'primary', disabled = false }: { children: React.ReactNode, onClick?: () => void, className?: string, variant?: 'primary' | 'secondary' | 'danger' | 'emerald' | 'slate', disabled?: boolean }) => (
+export const ClayButton = ({ children, onClick, className, variant = 'primary', disabled = false, type = 'button' }: { children: React.ReactNode, onClick?: () => void, className?: string, variant?: 'primary' | 'secondary' | 'danger' | 'emerald' | 'slate', disabled?: boolean, type?: 'button' | 'submit' | 'reset' }) => (
   <button
+    type={type}
     onClick={onClick}
     disabled={disabled}
     className={cn(
