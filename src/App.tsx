@@ -26,7 +26,11 @@ import { AdminView } from './views/AdminView';
 import { KCoinsView } from './views/KCoinsView';
 import { DirectPayView } from './views/DirectPayView';
 import { TransactionHistoryView } from './views/TransactionHistoryView';
-import { confirmPayment, awardKCoins, PLATFORM_FEE } from './paymentEngine';
+import { PLATFORM_FEE } from './paymentEngine';
+import { awardKCoinsSupabase } from './supabase';
+
+// alias for use in payment confirmation
+const awardKCoins = awardKCoinsSupabase;
 
 declare global { interface Window { Cashfree: any; } }
 
@@ -379,16 +383,37 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const orderId = params.get('order_id') || params.get('dp_order_id');
-    if (!orderId || !profile) return;
+    if (!orderId) return;
+    // Clean URL immediately
+    window.history.replaceState({}, document.title, window.location.pathname);
     (async () => {
       try {
-        const kCoins = await confirmPayment(orderId, orderId);
-        await awardKCoins(profile.uid, kCoins);
-        setProfile(prev => prev ? { ...prev, kCoins: (prev.kCoins || 0) + kCoins } : prev);
-        showToast(`Payment confirmed! +${kCoins} K-Coins earned`);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        // Update order payment status
+        await supabase.from('orders').update({ payment_status: 'paid', status: 'pending' }).eq('id', orderId);
+        // Update transaction status
+        await supabase.from('transactions').update({ payment_status: 'paid' }).eq('cashfree_order_id', orderId);
+        // Award K-Coins if user is logged in
+        if (profile?.uid) {
+          const kCoins = await awardKCoins(profile.uid, 5);
+          setProfile(prev => prev ? { ...prev, kCoins: (prev.kCoins || 0) + 5 } : prev);
+          // Persist updated kCoins
+          const cached = localStorage.getItem('klone-profile');
+          if (cached) {
+            try {
+              const p = JSON.parse(cached);
+              localStorage.setItem('klone-profile', JSON.stringify({ ...p, kCoins: (p.kCoins || 0) + 5 }));
+            } catch { /* ignore */ }
+          }
+          showToast(`✓ Payment confirmed! +5 K-Coins earned`);
+        } else {
+          showToast('✓ Payment confirmed!');
+        }
         setView('transactions');
-      } catch (err) { console.error('Payment confirmation:', err); }
+      } catch (err) {
+        console.error('Payment confirmation:', err);
+        showToast('Payment received — check your order history', 'success');
+        setView('orders');
+      }
     })();
   }, [profile?.uid]);
 

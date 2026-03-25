@@ -89,6 +89,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const outletName    = event?.data?.order?.order_tags?.outletName || "KL One Outlet";
 
     if (paymentStatus === "SUCCESS" && orderId) {
+      // Update order payment status
+      await supabase.from("orders").update({ payment_status: "paid", status: "pending" }).eq("id", orderId);
+      // Update transaction status
+      await supabase.from("transactions").update({ payment_status: "paid", k_coins_awarded: KCOINS_PER_ORDER }).eq("cashfree_order_id", orderId);
+
       // Award K-Coins via Supabase
       if (customerId) {
         await awardKCoins(customerId, KCOINS_PER_ORDER);

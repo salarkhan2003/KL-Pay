@@ -59,37 +59,42 @@ export async function saveUserProfile(uid: string, email: string, phone: string,
     }
 
     if (existing) {
-      // Only patch fields that need updating (role promotion, missing phone)
-      const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+      const patch: Record<string, any> = {};
       if (isAdmin && existing.role !== 'admin') patch.role = 'admin';
       if (phone && !existing.phone) patch.phone = phone;
-      if (Object.keys(patch).length > 1) {
+      if (Object.keys(patch).length > 0) {
         await supabase.from('profiles').update(patch).eq('id', uid);
       }
       return rowToProfile({ ...existing, ...patch });
     }
 
-    // New user — upsert (safer than insert — handles schema issues and race conditions)
+    // New user — upsert with only columns that exist in the schema
     const newRow = {
-      id: uid, email: email.toLowerCase(),
+      id: uid,
+      email: email.toLowerCase(),
       display_name: extras.displayName || email.split('@')[0],
       role: isAdmin ? 'admin' : 'student',
-      phone: phone || null, k_coins: 0, streak: 0, block: 'CSE',
-      student_id: studentId || null, gender: extras.gender || null, hostel: extras.hostel || null,
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      phone: phone || null,
+      k_coins: 0,
+      streak: 0,
+      block: 'CSE',
+      student_id: studentId || null,
+      gender: extras.gender || null,
+      hostel: extras.hostel || null,
     };
     const { error: upsertErr } = await supabase
       .from('profiles')
       .upsert(newRow, { onConflict: 'id', ignoreDuplicates: false });
     if (upsertErr) {
       console.warn('profile upsert:', upsertErr.message, upsertErr.code);
-      // If upsert fails (e.g. schema mismatch), try minimal columns only
-      await supabase.from('profiles').upsert(
-        { id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0], role: isAdmin ? 'admin' : 'student', updated_at: new Date().toISOString() },
+      // Retry with absolute minimum columns
+      const { error: minErr } = await supabase.from('profiles').upsert(
+        { id: uid, email: email.toLowerCase(), display_name: extras.displayName || email.split('@')[0], role: isAdmin ? 'admin' : 'student' },
         { onConflict: 'id', ignoreDuplicates: false }
-      ).catch(() => {});
+      );
+      if (minErr) console.warn('profile min upsert:', minErr.message);
     }
-    return rowToProfile(newRow);
+    return rowToProfile({ ...newRow, id: uid });
   } catch (e: any) {
     console.warn('saveUserProfile fallback:', e?.message);
     return buildLocalProfile(uid, email, phone, extras, isAdmin, studentId);

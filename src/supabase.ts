@@ -33,14 +33,16 @@ export async function getProfile(id: string) {
 }
 
 export async function updateProfileFields(id: string, fields: Record<string, any>) {
-  await supabase.from('profiles').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', id);
+  const { updated_at, ...safeFields } = fields; // strip updated_at — may not exist in old schema
+  if (Object.keys(safeFields).length === 0) return;
+  await supabase.from('profiles').update(safeFields).eq('id', id);
 }
 
 export async function awardKCoinsSupabase(userId: string, coins: number): Promise<number> {
-  const { data: profile } = await supabase.from('profiles').select('k_coins').eq('id', userId).single();
+  const { data: profile } = await supabase.from('profiles').select('k_coins').eq('id', userId).maybeSingle();
   const current = (profile as any)?.k_coins || 0;
   const next = current + coins;
-  await supabase.from('profiles').update({ k_coins: next, updated_at: new Date().toISOString() }).eq('id', userId);
+  await supabase.from('profiles').update({ k_coins: next }).eq('id', userId);
   return next;
 }
 
