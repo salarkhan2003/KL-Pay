@@ -69,11 +69,15 @@ export async function deleteMenuItemDb(id: string) {
 // ── orders ────────────────────────────────────────────────────────────────────
 export async function insertOrder(order: any) {
   const { error } = await supabase.from('orders').upsert(order, { onConflict: 'id' });
-  if (error) throw error;
+  if (error) {
+    console.error('insertOrder failed:', error.message, error.code, JSON.stringify(order).slice(0, 200));
+    throw error;
+  }
 }
 
 export async function updateOrderStatusDb(id: string, status: string) {
-  await supabase.from('orders').update({ status }).eq('id', id);
+  const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+  if (error) console.error('updateOrderStatus failed:', error.message);
 }
 
 export async function deleteOrderDb(id: string) {
@@ -83,7 +87,10 @@ export async function deleteOrderDb(id: string) {
 // ── transactions ──────────────────────────────────────────────────────────────
 export async function upsertTransaction(tx: any) {
   const { error } = await supabase.from('transactions').upsert(tx, { onConflict: 'id' });
-  if (error) throw error;
+  if (error) {
+    console.error('upsertTransaction failed:', error.message, error.code, JSON.stringify(tx).slice(0, 200));
+    throw error;
+  }
 }
 
 // ── support_tickets ───────────────────────────────────────────────────────────

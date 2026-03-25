@@ -419,7 +419,7 @@ export default function App() {
             payment_status: 'paid',
             token: pendingOrder.token,
           }, { onConflict: 'id' });
-          if (insertErr) console.warn('order upsert:', insertErr.message);
+          if (insertErr) console.error('order upsert failed:', insertErr.message, insertErr.code);
 
           // 2. Insert transaction
           const { error: txErr } = await supabase.from('transactions').upsert({
@@ -440,11 +440,13 @@ export default function App() {
             order_id: confirmId,
             token: pendingOrder.token,
           }, { onConflict: 'id' });
-          if (txErr) console.warn('tx upsert:', txErr.message);
+          if (txErr) console.error('tx upsert failed:', txErr.message, txErr.code);
         } else {
           // Order already in DB — just update status
-          await supabase.from('orders').update({ payment_status: 'paid', status: 'pending' }).eq('id', confirmId);
-          await supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', confirmId);
+          const { error: oErr } = await supabase.from('orders').update({ payment_status: 'paid', status: 'pending' }).eq('id', confirmId);
+          if (oErr) console.error('order update failed:', oErr.message, oErr.code);
+          const { error: tErr } = await supabase.from('transactions').update({ payment_status: 'paid', k_coins_awarded: 5 }).eq('cashfree_order_id', confirmId);
+          if (tErr) console.error('tx update failed:', tErr.message, tErr.code);
         }
 
         // 3. K-Coins will be awarded by the webhook (server-side)
@@ -595,7 +597,8 @@ export default function App() {
       }
 
       // Try saving order+transaction to DB now (best-effort, also saved on return)
-      insertOrder({ id: orderId, student_id: profile.uid, outlet_id: outlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token }).catch(() => {});
+      insertOrder({ id: orderId, student_id: profile.uid, outlet_id: outlet.id, user_name: profile.displayName, user_phone: profile.phone || '', items: cart, total_amount: totalAmount, convenience_fee: PLATFORM_FEE, vendor_amount: cartTotal, status: 'pending', payment_status: 'unpaid', token })
+        .catch(e => console.error('pre-checkout order save failed:', e.message));
       
       // Also create transaction record
       upsertTransaction({
@@ -615,7 +618,7 @@ export default function App() {
         k_coins_awarded: 0,
         order_id: orderId,
         token,
-      }).catch(() => {});
+      }).catch(e => console.error('pre-checkout tx save failed:', e.message));
 
       const cashfree = new window.Cashfree({ mode: 'production' });
       await cashfree.checkout({ paymentSessionId: sessionData.payment_session_id, redirectTarget: '_self' });
