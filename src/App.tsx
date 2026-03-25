@@ -309,10 +309,9 @@ export default function App() {
     if (!profile || profile.role !== 'merchant') return;
     const outletId = profile.merchantOutletId || outlets.find(o => o.merchantId === profile.uid)?.id;
     if (!outletId) return;
-    supabase.from('orders').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).then(({ data }) => { if (data) setMerchantOrders(data.map(rowToOrder)); });
-    const ch = supabase.channel(`orders_merchant_${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, () => {
-      supabase.from('orders').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).then(({ data }) => { if (data) setMerchantOrders(data.map(rowToOrder)); });
-    }).subscribe();
+    const fetchMerchantOrders = () => supabase.from('orders').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).then(({ data }) => { if (data) setMerchantOrders(data.map(rowToOrder)); });
+    fetchMerchantOrders();
+    const ch = supabase.channel(`orders_merchant_${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, fetchMerchantOrders).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [profile?.uid, profile?.role, profile?.merchantOutletId, outlets.length]);
 

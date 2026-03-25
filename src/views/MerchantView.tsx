@@ -1,17 +1,20 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, CheckCircle2, Phone, Zap, ShoppingBag, ScanLine, Bell, Volume2,
-  BarChart2, TrendingUp, Package, Clock, Plus, Settings, Trash2, X,
+  BarChart2, TrendingUp, Package, Clock, Plus, Trash2, X,
   IndianRupee, Tag, Image, Upload, Loader2, Store, ToggleLeft, ToggleRight,
-  UtensilsCrossed, Star, MapPin, Edit2, CreditCard, Link,
+  UtensilsCrossed, Star, MapPin, Edit2, CreditCard, Link, XCircle,
+  ArrowUpRight, Receipt, Hash, Calendar, Users, Wallet, Activity,
+  CheckCheck, AlertCircle, RefreshCw, Filter, ChevronDown, ChevronUp,
+  TrendingDown, Award, Percent,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
 import { cn } from '../utils';
-import { Order, Outlet, MenuItem } from '../types';
+import { Order, Outlet, MenuItem, Transaction } from '../types';
 import { useMerchantSocket, announcePayment, PaymentAlertPayload } from '../hooks/useMerchantSocket';
-import { supabase } from '../supabase';
+import { supabase, rowToOrder, rowToTransaction } from '../supabase';
 
 interface MerchantViewProps {
   orders: Order[];
@@ -42,15 +45,77 @@ async function uploadFoodImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-type DashTab = 'orders' | 'menu' | 'analytics' | 'outlet';
+type DashTab = 'orders' | 'payments' | 'analytics' | 'menu' | 'outlet';
 
+const MField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
+  <div>
+    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">{icon}{label}</p>
+    {children}
+  </div>
+);
+
+const StatusBadge: React.FC<{ status: Order['status'] | Order['paymentStatus'] }> = ({ status }) => {
+  const cfg: Record<string, { color: string; label: string }> = {
+    pending:    { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   label: 'Pending' },
+    preparing:  { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',      label: 'Preparing' },
+    ready:      { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Ready' },
+    picked_up:  { color: 'bg-white/10 text-white/40 border-white/10',            label: 'Picked Up' },
+    cancelled:  { color: 'bg-red-500/20 text-red-400 border-red-500/30',         label: 'Cancelled' },
+    paid:       { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Paid' },
+    unpaid:     { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   label: 'Unpaid' },
+    failed:     { color: 'bg-red-500/20 text-red-400 border-red-500/30',         label: 'Failed' },
+  };
+  const c = cfg[status] || cfg.pending;
+  return <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border', c.color)}>{c.label}</span>;
+};
+
+// ── Main MerchantView ─────────────────────────────────────────────────────────
 export const MerchantView: React.FC<MerchantViewProps> = ({
-  orders, outlets, merchantOutlet, onUpdateStatus, onSwitchView,
+  orders: propOrders, outlets, merchantOutlet, onUpdateStatus, onSwitchView,
   menu = [], onSaveItem, onDeleteItem, onToggleAvailability, onSaveOutlet, onAssignOutlet,
 }) => {
   const [tab, setTab] = useState<DashTab>('orders');
   const [alerts, setAlerts] = useState<PaymentAlertPayload[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [liveOrders, setLiveOrders] = useState<Order[]>(propOrders);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTx, setLoadingTx] = useState(false);
+  const [isOpen, setIsOpen] = useState(merchantOutlet?.isOpen ?? true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Sync prop orders into live state
+  useEffect(() => { setLiveOrders(propOrders); }, [propOrders]);
+
+  // Fetch transactions for this outlet from DB
+  useEffect(() => {
+    if (!merchantOutlet?.id) return;
+    setLoadingTx(true);
+    supabase.from('transactions').select('*')
+      .eq('outlet_id', merchantOutlet.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setTransactions(data.map(rowToTransaction));
+        setLoadingTx(false);
+      });
+    const ch = supabase.channel(`merchant_tx_${merchantOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `outlet_id=eq.${merchantOutlet.id}` }, () => {
+        supabase.from('transactions').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false })
+          .then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [merchantOutlet?.id]);
+
+  // Realtime orders subscription
+  useEffect(() => {
+    if (!merchantOutlet?.id) return;
+    const fetchOrders = () => supabase.from('orders').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setLiveOrders(data.map(rowToOrder)); });
+    fetchOrders();
+    const ch = supabase.channel(`mv_orders_${merchantOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${merchantOutlet.id}` }, fetchOrders)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [merchantOutlet?.id]);
 
   const handleAlert = useCallback((alert: PaymentAlertPayload) => {
     setAlerts(prev => [alert, ...prev].slice(0, 10));
@@ -59,50 +124,70 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
 
   useMerchantSocket({ outletId: merchantOutlet?.id || null, onAlert: handleAlert });
 
+  const handleRefresh = async () => {
+    if (!merchantOutlet?.id) return;
+    setRefreshing(true);
+    const [{ data: o }, { data: t }] = await Promise.all([
+      supabase.from('orders').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false }),
+    ]);
+    if (o) setLiveOrders(o.map(rowToOrder));
+    if (t) setTransactions(t.map(rowToTransaction));
+    setRefreshing(false);
+  };
+
+  const toggleOutletOpen = async () => {
+    if (!merchantOutlet) return;
+    const next = !isOpen;
+    setIsOpen(next);
+    await supabase.from('outlets').update({ is_open: next }).eq('id', merchantOutlet.id);
+  };
+
   if (!merchantOutlet) {
     return <NoOutletSetup outlets={outlets} onSaveOutlet={onSaveOutlet} onAssignOutlet={onAssignOutlet} />;
   }
 
-  const activeOrders = orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled');
-  const todayOrders = orders.filter(o => {
+  const now = new Date();
+  const todayOrders = liveOrders.filter(o => {
     const d = new Date(o.createdAt || '');
-    const now = new Date();
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
-  const todaySales = todayOrders.reduce((acc, o) => acc + (o.vendorAmount || 0), 0);
-  const totalSales = orders.reduce((acc, o) => acc + (o.vendorAmount || 0), 0);
-  const avgOrder = orders.length ? Math.round(totalSales / orders.length) : 0;
-  const availableItems = menu.filter(m => m.isAvailable).length;
+  const activeOrders = liveOrders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled');
+  const todaySales = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + (o.vendorAmount || 0), 0);
+  const totalRevenue = liveOrders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + (o.vendorAmount || 0), 0);
+  const avgOrder = liveOrders.length ? Math.round(totalRevenue / liveOrders.length) : 0;
 
-  const TABS: { id: DashTab; label: string; icon: any }[] = [
-    { id: 'orders',    label: 'Orders',    icon: ShoppingBag },
-    { id: 'menu',      label: 'Menu',      icon: UtensilsCrossed },
+  const TABS: { id: DashTab; label: string; icon: any; badge?: number }[] = [
+    { id: 'orders',    label: 'Orders',    icon: ShoppingBag, badge: activeOrders.length },
+    { id: 'payments',  label: 'Payments',  icon: Wallet },
     { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+    { id: 'menu',      label: 'Menu',      icon: UtensilsCrossed },
     { id: 'outlet',    label: 'Outlet',    icon: Store },
   ];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5">
-
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Merchant Dashboard</p>
           <h2 className="text-display text-3xl font-black leading-tight">{merchantOutlet.name}</h2>
-          <p className="text-white/30 text-xs mt-0.5 flex items-center gap-1">
-            <MapPin className="w-3 h-3" />{merchantOutlet.blockName}
-          </p>
+          <p className="text-white/30 text-xs mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3" />{merchantOutlet.blockName}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleRefresh} className={cn('w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all', refreshing && 'animate-spin')}>
+            <RefreshCw className="w-4 h-4" />
+          </button>
           <button onClick={() => setVoiceEnabled(v => !v)}
-            className={cn('w-10 h-10 rounded-xl border flex items-center justify-center transition-all',
-              voiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-white/20')}>
+            className={cn('w-10 h-10 rounded-xl border flex items-center justify-center transition-all', voiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-white/20')}>
             <Volume2 className="w-4 h-4" />
           </button>
-          <div className={cn('w-10 h-10 rounded-xl border flex items-center justify-center',
-            merchantOutlet.isOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400')}>
-            <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
-          </div>
+          <button onClick={toggleOutletOpen}
+            className={cn('flex items-center gap-1.5 px-3 h-10 rounded-xl border font-black text-xs transition-all',
+              isOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400')}>
+            <div className={cn('w-2 h-2 rounded-full', isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400')} />
+            {isOpen ? 'Open' : 'Closed'}
+          </button>
         </div>
       </div>
 
@@ -112,7 +197,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
           { label: 'Active', value: activeOrders.length, color: 'text-amber-400', icon: Clock },
           { label: 'Today', value: todayOrders.length, color: 'text-blue-400', icon: Package },
           { label: 'Sales', value: `₹${todaySales}`, color: 'text-emerald-400', icon: TrendingUp },
-          { label: 'Menu', value: `${availableItems}/${menu.length}`, color: 'text-klu-red', icon: UtensilsCrossed },
+          { label: 'Menu', value: `${menu.filter(m => m.isAvailable).length}/${menu.length}`, color: 'text-klu-red', icon: UtensilsCrossed },
         ].map(s => (
           <GlassCard key={s.label} className="p-3 text-center">
             <s.icon className={cn('w-4 h-4 mx-auto mb-1', s.color)} />
@@ -126,23 +211,25 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
       <AnimatePresence>
         {alerts.length > 0 && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
-              <Bell className="w-3 h-3 text-amber-400" /> Live Alerts
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+                <Bell className="w-3 h-3 text-amber-400" /> Live Alerts
+              </p>
+              <button onClick={() => setAlerts([])} className="text-[10px] text-white/20 hover:text-white/50 font-black">Clear</button>
+            </div>
             {alerts.slice(0, 3).map((alert, i) => (
               <motion.div key={`${alert.orderId}-${i}`} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                 className={cn('flex items-center gap-3 p-3 rounded-2xl border',
-                  alert.type === 'Food_Order' ? 'bg-blue-500/10 border-blue-500/20' : 'bg-emerald-500/10 border-emerald-500/20')}>
-                {alert.type === 'Food_Order'
-                  ? <ShoppingBag className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                  : <ScanLine className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
+                  alert.status === 'confirmed' ? 'bg-emerald-500/10 border-emerald-500/20' :
+                  alert.type === 'Food_Order' ? 'bg-blue-500/10 border-blue-500/20' : 'bg-amber-500/10 border-amber-500/20')}>
+                {alert.type === 'Food_Order' ? <ShoppingBag className="w-5 h-5 text-blue-400 flex-shrink-0" /> : <ScanLine className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-xs font-black', alert.type === 'Food_Order' ? 'text-blue-300' : 'text-emerald-300')}>
-                    {alert.type === 'Food_Order' ? `New Order — Token #${alert.token || '—'}` : `Direct Pay ₹${alert.amount} from ${alert.fromName}`}
+                  <p className="text-xs font-black text-white">
+                    {alert.status === 'confirmed' ? '✓ Payment Confirmed' : alert.type === 'Food_Order' ? `New Order — Token #${alert.token || '—'}` : `Direct Pay ₹${alert.amount}`}
                   </p>
-                  {alert.note && <p className="text-white/30 text-[10px] truncate">{alert.note}</p>}
+                  <p className="text-white/30 text-[10px]">{alert.fromName}{alert.note ? ` · ${alert.note}` : ''}</p>
                 </div>
-                <Zap className={cn('w-4 h-4 flex-shrink-0', alert.type === 'Food_Order' ? 'text-blue-400' : 'text-emerald-400')} />
+                <span className="text-xs font-black text-white/60">₹{alert.amount}</span>
               </motion.div>
             ))}
           </motion.div>
@@ -153,586 +240,431 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
       <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 gap-1">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={cn('flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all',
+            className={cn('flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all relative',
               tab === t.id ? 'bg-klu-red text-white shadow-lg' : 'text-white/30 hover:text-white/60')}>
             <t.icon className="w-3.5 h-3.5" />
             {t.label}
+            {t.badge != null && t.badge > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-black rounded-full text-[8px] font-black flex items-center justify-center">
+                {t.badge > 9 ? '9+' : t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
       <AnimatePresence mode="wait">
-        {tab === 'orders' && <OrdersTab key="orders" activeOrders={activeOrders} onUpdateStatus={onUpdateStatus} />}
+        {tab === 'orders' && <OrdersTab key="orders" orders={liveOrders} onUpdateStatus={onUpdateStatus} />}
+        {tab === 'payments' && <PaymentsTab key="payments" transactions={transactions} loading={loadingTx} />}
+        {tab === 'analytics' && <AnalyticsTab key="analytics" orders={liveOrders} transactions={transactions} todaySales={todaySales} totalRevenue={totalRevenue} avgOrder={avgOrder} />}
         {tab === 'menu' && <MenuTab key="menu" menu={menu} onSaveItem={onSaveItem} onDeleteItem={onDeleteItem} onToggleAvailability={onToggleAvailability} outletId={merchantOutlet.id} />}
-        {tab === 'analytics' && <AnalyticsTab key="analytics" orders={orders} todaySales={todaySales} totalSales={totalSales} avgOrder={avgOrder} />}
         {tab === 'outlet' && <OutletTab key="outlet" outlet={merchantOutlet} onSave={onSaveOutlet} />}
       </AnimatePresence>
     </motion.div>
   );
 };
 
-// ── Shared field wrapper ──────────────────────────────────────────────────────
-const MField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
-  <div>
-    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">{icon}{label}</p>
-    {children}
-  </div>
-);
+// ── OrdersTab ─────────────────────────────────────────────────────────────────
+const OrdersTab: React.FC<{ orders: Order[]; onUpdateStatus: (id: string, s: Order['status']) => void }> = ({ orders, onUpdateStatus }) => {
+  const [filter, setFilter] = useState<'active' | 'all'>('active');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-// ── No Outlet Setup ───────────────────────────────────────────────────────────
+  const shown = filter === 'active'
+    ? orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled')
+    : orders;
+
+  const NEXT: Record<Order['status'], Order['status'] | null> = {
+    pending: 'preparing', preparing: 'ready', ready: 'picked_up', picked_up: null, cancelled: null,
+  };
+  const NEXT_LABEL: Record<Order['status'], string> = {
+    pending: 'Start Preparing', preparing: 'Mark Ready', ready: 'Mark Picked Up', picked_up: '', cancelled: '',
+  };
+
+  return (
+    <motion.div key="orders-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+      <div className="flex gap-2 p-1 bg-white/5 rounded-2xl border border-white/10">
+        {[{ k: 'active', l: `Active (${orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled').length})` }, { k: 'all', l: `All (${orders.length})` }].map(f => (
+          <button key={f.k} onClick={() => setFilter(f.k as any)}
+            className={cn('flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all', filter === f.k ? 'clay-red' : 'text-white/30')}>
+            {f.l}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="text-center py-16 glass-frosted rounded-3xl border border-white/10">
+          <ShoppingBag className="w-10 h-10 text-white/10 mx-auto mb-3" />
+          <p className="text-white/30 font-medium">No {filter} orders</p>
+        </div>
+      ) : shown.map(order => {
+        const isExp = expanded === order.id;
+        return (
+          <GlassCard key={order.id} className="overflow-hidden">
+            <button className="w-full p-4 text-left" onClick={() => setExpanded(isExp ? null : order.id)}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-black text-white/40">Token</span>
+                    <span className="text-sm font-black text-klu-red">#{order.token}</span>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  <p className="text-xs text-white/40 truncate">{order.userName || 'Student'} · {order.userPhone || '—'}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="font-black text-sm">₹{order.totalAmount?.toFixed(2)}</p>
+                  <StatusBadge status={order.paymentStatus} />
+                </div>
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {isExp && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  className="border-t border-white/5 overflow-hidden">
+                  <div className="p-4 space-y-3">
+                    {/* Items */}
+                    <div className="space-y-1">
+                      {(order.items || []).map((item, i) => (
+                        <div key={i} className="flex justify-between text-xs text-white/60">
+                          <span>{item.quantity}× {item.name}</span>
+                          <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <p className="text-[10px] text-white/20">
+                      {new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      {NEXT[order.status] && (
+                        <ClayButton onClick={() => onUpdateStatus(order.id, NEXT[order.status]!)} className="flex-1 text-xs py-2">
+                          {NEXT_LABEL[order.status]}
+                        </ClayButton>
+                      )}
+                      {order.status !== 'cancelled' && order.status !== 'picked_up' && (
+                        <button onClick={() => onUpdateStatus(order.id, 'cancelled')}
+                          className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-black">
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </GlassCard>
+        );
+      })}
+    </motion.div>
+  );
+};
+
+// ── PaymentsTab ───────────────────────────────────────────────────────────────
+const PaymentsTab: React.FC<{ transactions: Transaction[]; loading: boolean }> = ({ transactions, loading }) => {
+  const paid = transactions.filter(t => t.paymentStatus === 'paid');
+  const totalReceived = paid.reduce((s, t) => s + (t.vendorAmount || 0), 0);
+  const todayPaid = paid.filter(t => {
+    const d = new Date(t.createdAt);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const todayTotal = todayPaid.reduce((s, t) => s + (t.vendorAmount || 0), 0);
+
+  return (
+    <motion.div key="payments-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <GlassCard className="p-4">
+          <p className="text-[10px] text-white/30 font-black uppercase">Today's Revenue</p>
+          <p className="text-2xl font-black text-emerald-400">₹{todayTotal.toFixed(2)}</p>
+          <p className="text-[10px] text-white/20 mt-1">{todayPaid.length} payments</p>
+        </GlassCard>
+        <GlassCard className="p-4">
+          <p className="text-[10px] text-white/30 font-black uppercase">Total Revenue</p>
+          <p className="text-2xl font-black">₹{totalReceived.toFixed(2)}</p>
+          <p className="text-[10px] text-white/20 mt-1">{paid.length} payments</p>
+        </GlassCard>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-white/30 animate-spin" />
+        </div>
+      ) : transactions.length === 0 ? (
+        <div className="text-center py-16 glass-frosted rounded-3xl border border-white/10">
+          <Wallet className="w-10 h-10 text-white/10 mx-auto mb-3" />
+          <p className="text-white/30 font-medium">No payments yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {transactions.map(tx => (
+            <div key={tx.id} className="glass-frosted rounded-2xl border border-white/10 p-4 flex items-center gap-3">
+              <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                tx.flow === 'Food_Order' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-emerald-500/10 border border-emerald-500/20')}>
+                {tx.flow === 'Food_Order' ? <ShoppingBag className="w-4 h-4 text-blue-400" /> : <ScanLine className="w-4 h-4 text-emerald-400" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black truncate">{tx.studentName || 'Student'}</p>
+                <p className="text-[10px] text-white/30">
+                  {tx.flow === 'Food_Order' ? `Token #${tx.token || '—'}` : tx.note || 'Direct Pay'} ·{' '}
+                  {new Date(tx.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="font-black text-sm text-emerald-400">+₹{(tx.vendorAmount || 0).toFixed(2)}</p>
+                <StatusBadge status={tx.paymentStatus} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+// ── AnalyticsTab ──────────────────────────────────────────────────────────────
+const AnalyticsTab: React.FC<{ orders: Order[]; transactions: Transaction[]; todaySales: number; totalRevenue: number; avgOrder: number }> = ({ orders, transactions, todaySales, totalRevenue, avgOrder }) => {
+  const paid = transactions.filter(t => t.paymentStatus === 'paid');
+  const foodOrders = paid.filter(t => t.flow === 'Food_Order');
+  const directPays = paid.filter(t => t.flow === 'Peer_to_Merchant_Pay');
+  const cancelledCount = orders.filter(o => o.status === 'cancelled').length;
+  const completedCount = orders.filter(o => o.status === 'picked_up').length;
+  const completionRate = orders.length ? Math.round((completedCount / orders.length) * 100) : 0;
+
+  const stats = [
+    { label: 'Total Revenue', value: `₹${totalRevenue.toFixed(0)}`, icon: IndianRupee, color: 'text-emerald-400' },
+    { label: "Today's Sales", value: `₹${todaySales.toFixed(0)}`, icon: TrendingUp, color: 'text-blue-400' },
+    { label: 'Avg Order', value: `₹${avgOrder}`, icon: BarChart2, color: 'text-amber-400' },
+    { label: 'Completion', value: `${completionRate}%`, icon: CheckCheck, color: 'text-klu-red' },
+    { label: 'Food Orders', value: foodOrders.length, icon: ShoppingBag, color: 'text-blue-400' },
+    { label: 'Direct Pays', value: directPays.length, icon: ScanLine, color: 'text-emerald-400' },
+    { label: 'Cancelled', value: cancelledCount, icon: XCircle, color: 'text-red-400' },
+    { label: 'Total Orders', value: orders.length, icon: Package, color: 'text-white/60' },
+  ];
+
+  return (
+    <motion.div key="analytics-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        {stats.map(s => (
+          <GlassCard key={s.label} className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
+              <s.icon className={cn('w-4 h-4', s.color)} />
+            </div>
+            <div>
+              <p className="text-[10px] text-white/30 font-black uppercase">{s.label}</p>
+              <p className={cn('text-lg font-black', s.color)}>{s.value}</p>
+            </div>
+          </GlassCard>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// ── MenuTab ───────────────────────────────────────────────────────────────────
+const MenuTab: React.FC<{
+  menu: MenuItem[]; outletId: string;
+  onSaveItem?: (item: Partial<MenuItem> & { name: string; price: number; category: string }) => Promise<void>;
+  onDeleteItem?: (id: string) => Promise<void>;
+  onToggleAvailability?: (id: string, isAvailable: boolean) => void;
+}> = ({ menu, onSaveItem, onDeleteItem, onToggleAvailability }) => {
+  const [editing, setEditing] = useState<Partial<MenuItem> | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!editing || !editing.name || !editing.price || !onSaveItem) return;
+    setSaving(true);
+    await onSaveItem({ ...editing, name: editing.name!, price: editing.price!, category: editing.category || 'Main' });
+    setSaving(false);
+    setEditing(null);
+  };
+
+  return (
+    <motion.div key="menu-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+      <ClayButton onClick={() => setEditing({ name: '', price: 0, category: 'Main', prepTime: '10m', description: '', isAvailable: true })} className="w-full flex items-center justify-center gap-2">
+        <Plus className="w-4 h-4" /> Add Item
+      </ClayButton>
+
+      <AnimatePresence>
+        {editing && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            className="glass-frosted rounded-3xl border border-white/10 p-5 space-y-3">
+            <p className="text-xs font-black uppercase tracking-widest text-white/40">{editing.id ? 'Edit Item' : 'New Item'}</p>
+            <input value={editing.name || ''} onChange={e => setEditing(p => ({ ...p!, name: e.target.value }))}
+              placeholder="Item name" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+            <div className="grid grid-cols-2 gap-3">
+              <input type="number" value={editing.price || ''} onChange={e => setEditing(p => ({ ...p!, price: parseFloat(e.target.value) || 0 }))}
+                placeholder="Price ₹" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+              <select value={editing.category || 'Main'} onChange={e => setEditing(p => ({ ...p!, category: e.target.value }))}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
+                {CATEGORIES.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+              </select>
+            </div>
+            <input value={editing.description || ''} onChange={e => setEditing(p => ({ ...p!, description: e.target.value }))}
+              placeholder="Description (optional)" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+            <div className="flex gap-2">
+              <ClayButton onClick={handleSave} disabled={saving} className="flex-1">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save'}
+              </ClayButton>
+              <button onClick={() => setEditing(null)} className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/40 font-black text-sm">Cancel</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {menu.length === 0 ? (
+        <div className="text-center py-12 glass-frosted rounded-3xl border border-white/10">
+          <UtensilsCrossed className="w-10 h-10 text-white/10 mx-auto mb-3" />
+          <p className="text-white/30 font-medium">No menu items yet</p>
+        </div>
+      ) : menu.map(item => (
+        <div key={item.id} className="glass-frosted rounded-2xl border border-white/10 p-4 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className={cn('font-black text-sm', !item.isAvailable && 'text-white/30 line-through')}>{item.name}</p>
+            <p className="text-white/40 text-xs">₹{item.price} · {item.category}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => onToggleAvailability?.(item.id, !item.isAvailable)}
+              className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+                item.isAvailable ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-white/20')}>
+              {item.isAvailable ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setEditing(item)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => onDeleteItem?.(item.id)} className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </motion.div>
+  );
+};
+
+// ── OutletTab ─────────────────────────────────────────────────────────────────
+const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { name: string }) => Promise<void> }> = ({ outlet, onSave }) => {
+  const [form, setForm] = useState({ name: outlet.name, description: outlet.description, blockName: outlet.blockName, category: outlet.category, upiId: outlet.upiId, timings: outlet.timings || '', imageUrl: outlet.imageUrl });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    setSaving(true);
+    await onSave({ ...form, id: outlet.id });
+    setSaving(false);
+  };
+
+  return (
+    <motion.div key="outlet-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+      <GlassCard className="p-5 space-y-4">
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Outlet Details</p>
+        {[
+          { label: 'Name', key: 'name', placeholder: 'Outlet name' },
+          { label: 'Description', key: 'description', placeholder: 'Short description' },
+          { label: 'UPI ID', key: 'upiId', placeholder: 'merchant@upi' },
+          { label: 'Timings', key: 'timings', placeholder: '8am – 9pm' },
+          { label: 'Image URL', key: 'imageUrl', placeholder: 'https://...' },
+        ].map(f => (
+          <div key={f.key}>
+            <p className="text-[10px] font-black uppercase text-white/30 mb-1">{f.label}</p>
+            <input value={(form as any)[f.key] || ''} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+              placeholder={f.placeholder}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+          </div>
+        ))}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase text-white/30 mb-1">Block</p>
+            <select value={form.blockName} onChange={e => setForm(p => ({ ...p, blockName: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
+              {BLOCKS.map(b => <option key={b} value={b} className="bg-gray-900">{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-white/30 mb-1">Category</p>
+            <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
+              {OUTLET_CATS.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <ClayButton onClick={handleSave} disabled={saving} className="w-full">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save Changes'}
+        </ClayButton>
+      </GlassCard>
+    </motion.div>
+  );
+};
+
+// ── NoOutletSetup ─────────────────────────────────────────────────────────────
 const NoOutletSetup: React.FC<{
   outlets: Outlet[];
   onSaveOutlet?: (data: Partial<Outlet> & { name: string }) => Promise<void>;
-  onAssignOutlet?: (outletId: string) => Promise<void>;
+  onAssignOutlet?: (id: string) => Promise<void>;
 }> = ({ outlets, onSaveOutlet, onAssignOutlet }) => {
-  const [mode, setMode] = useState<'choose' | 'create' | 'assign'>('choose');
+  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_OUTLET_FORM });
   const [saving, setSaving] = useState(false);
 
   const handleCreate = async () => {
     if (!form.name || !onSaveOutlet) return;
     setSaving(true);
-    try {
-      await onSaveOutlet({ ...form });
-    } catch (e) {
-      console.warn('create outlet:', e);
-    } finally {
-      setSaving(false);
-    }
+    await onSaveOutlet(form);
+    setSaving(false);
   };
 
-  const handleAssign = async (id: string) => {
-    if (!onAssignOutlet) return;
-    await onAssignOutlet(id);
-  };
-
-  if (mode === 'create') return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setMode('choose')} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white">
-          <X className="w-4 h-4" />
-        </button>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">New Outlet</p>
-          <h2 className="text-display text-2xl font-black">Create Outlet</h2>
-        </div>
-      </div>
-
-      <GlassCard className="p-5 space-y-4">
-        <MField label="Outlet Name" icon={<Store className="w-4 h-4" />}>
-          <input className="input-field" placeholder="e.g. Friend's Canteen" value={form.name}
-            onChange={e => setForm(p => ({ ...p, name: e.target.value }))} autoFocus />
-        </MField>
-        <MField label="Description" icon={<Tag className="w-4 h-4" />}>
-          <input className="input-field" placeholder="Short description" value={form.description}
-            onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-        </MField>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">
-            <MapPin className="w-4 h-4" /> Block / Location
-          </p>
-          <select className="input-field" value={form.blockName}
-            onChange={e => setForm(p => ({ ...p, blockName: e.target.value }))}>
-            {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <MField label="Timings" icon={<Clock className="w-4 h-4" />}>
-            <input className="input-field" placeholder="8am – 9pm" value={form.timings}
-              onChange={e => setForm(p => ({ ...p, timings: e.target.value }))} />
-          </MField>
-          <MField label="UPI ID" icon={<CreditCard className="w-4 h-4" />}>
-            <input className="input-field" placeholder="merchant@okaxis" value={form.upiId}
-              onChange={e => setForm(p => ({ ...p, upiId: e.target.value }))} />
-          </MField>
-        </div>
-        <MField label="Image URL (optional)" icon={<Link className="w-4 h-4" />}>
-          <input className="input-field" placeholder="https://..." value={form.imageUrl}
-            onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))} />
-        </MField>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Category</p>
-          <div className="flex flex-wrap gap-2">
-            {OUTLET_CATS.map(cat => (
-              <button key={cat} onClick={() => setForm(p => ({ ...p, category: cat }))}
-                className={cn('px-3 py-1.5 rounded-full text-xs font-black border transition-all',
-                  form.category === cat ? 'bg-klu-red border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/40')}>
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </GlassCard>
-
-      <ClayButton onClick={handleCreate} className="w-full h-12" disabled={saving || !form.name}>
-        {saving ? 'Creating...' : 'Create & Assign Outlet'}
-      </ClayButton>
-    </motion.div>
-  );
-
-  if (mode === 'assign') return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setMode('choose')} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white">
-          <X className="w-4 h-4" />
-        </button>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">Assign Outlet</p>
-          <h2 className="text-display text-2xl font-black">Select Outlet</h2>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {outlets.length === 0 ? (
-          <div className="text-center py-12 glass-frosted rounded-[24px] border border-white/10">
-            <Store className="w-10 h-10 text-white/10 mx-auto mb-3" />
-            <p className="text-white/30 text-sm font-bold">No outlets available</p>
-            <p className="text-white/20 text-xs mt-1">Create one first</p>
-          </div>
-        ) : outlets.map(outlet => (
-          <button key={outlet.id} onClick={() => handleAssign(outlet.id)}
-            className="w-full flex items-center gap-3 p-4 glass-frosted rounded-[20px] border border-white/10 hover:border-klu-red/40 active:scale-[0.98] transition-all text-left">
-            <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
-              <img src={outlet.imageUrl || 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=100'}
-                className="w-full h-full object-cover" referrerPolicy="no-referrer" alt="" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-sm truncate">{outlet.name}</p>
-              <p className="text-xs text-white/30">{outlet.blockName} · {outlet.category}</p>
-            </div>
-            <div className={cn('w-2 h-2 rounded-full flex-shrink-0', outlet.isOpen ? 'bg-emerald-400' : 'bg-red-400')} />
-          </button>
-        ))}
-      </div>
-    </motion.div>
-  );
-
-  // Default: choose mode
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="text-center pt-8">
-        <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-          <ChefHat className="w-10 h-10 text-white/20" />
-        </div>
-        <h2 className="text-display text-2xl font-black">No Outlet Assigned</h2>
-        <p className="text-white/30 text-sm mt-1">Create a new outlet or assign an existing one</p>
-      </div>
-      <div className="grid grid-cols-1 gap-3">
-        <button onClick={() => setMode('create')}
-          className="flex items-center gap-4 p-5 glass-frosted rounded-[24px] border border-klu-red/20 hover:border-klu-red/50 active:scale-[0.98] transition-all text-left">
-          <div className="w-12 h-12 rounded-2xl bg-klu-red/10 border border-klu-red/20 flex items-center justify-center flex-shrink-0">
-            <Plus className="w-6 h-6 text-klu-red" />
-          </div>
-          <div>
-            <p className="font-black text-sm">Create New Outlet</p>
-            <p className="text-xs text-white/30 mt-0.5">Set up your canteen from scratch</p>
-          </div>
-        </button>
-        {outlets.length > 0 && (
-          <button onClick={() => setMode('assign')}
-            className="flex items-center gap-4 p-5 glass-frosted rounded-[24px] border border-blue-500/20 hover:border-blue-500/40 active:scale-[0.98] transition-all text-left">
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Store className="w-6 h-6 text-blue-400" />
-            </div>
-            <div>
-              <p className="font-black text-sm">Assign Existing Outlet</p>
-              <p className="text-xs text-white/30 mt-0.5">{outlets.length} outlet{outlets.length !== 1 ? 's' : ''} available</p>
-            </div>
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-// ── Orders Tab ────────────────────────────────────────────────────────────────
-const OrdersTab: React.FC<{ activeOrders: Order[]; onUpdateStatus: (id: string, s: Order['status']) => void }> = ({ activeOrders, onUpdateStatus }) => (
-  <motion.div key="orders-tab" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-    <p className="text-[10px] font-black uppercase tracking-widest text-white/30">{activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''}</p>
-    {activeOrders.length === 0 ? (
-      <div className="text-center py-16 glass-frosted rounded-[32px] border border-white/5">
-        <ChefHat className="w-12 h-12 text-white/10 mx-auto mb-3" />
-        <p className="text-white/30 font-medium">No active orders</p>
-      </div>
-    ) : (
-      activeOrders.map(order => (
-        <GlassCard key={order.id} className="p-5">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-display font-black text-lg">Token #{order.token}</h4>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">Pre-Order</span>
-              </div>
-              {order.userName && <p className="text-xs text-white/40 font-bold mt-0.5">{order.userName}</p>}
-              {order.userPhone && (
-                <a href={`tel:${order.userPhone}`} className="flex items-center gap-1.5 mt-1 text-xs font-black text-emerald-400">
-                  <Phone className="w-3 h-3" />{order.userPhone}
-                </a>
-              )}
-            </div>
-            <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-              order.status === 'pending' && 'bg-amber-500/20 text-amber-500',
-              order.status === 'preparing' && 'bg-blue-500/20 text-blue-500',
-              order.status === 'ready' && 'bg-emerald-500/20 text-emerald-500'
-            )}>{order.status}</span>
-          </div>
-          <div className="space-y-1.5 mb-4 border-t border-white/5 pt-3">
-            {order.items.map(item => (
-              <div key={item.id} className="flex justify-between text-sm font-bold">
-                <span className="text-white/70">{item.quantity}× {item.name}</span>
-                <span className="text-white/40">₹{item.price * item.quantity}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-sm font-black pt-1 border-t border-white/5">
-              <span>Total</span><span className="text-klu-red">₹{order.vendorAmount}</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {order.status === 'pending' && (
-              <ClayButton onClick={() => onUpdateStatus(order.id, 'preparing')} className="flex-1 py-3 text-xs">Start Preparing</ClayButton>
-            )}
-            {order.status === 'preparing' && (
-              <ClayButton onClick={() => onUpdateStatus(order.id, 'ready')} className="flex-1 py-3 text-xs" variant="emerald">Mark Ready</ClayButton>
-            )}
-            {order.status === 'ready' && (
-              <div className="flex-1 flex gap-2">
-                <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 text-[10px] font-black uppercase px-2">Waiting for Pick Up</div>
-                <button onClick={() => onUpdateStatus(order.id, 'picked_up')} className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg active:scale-95 transition-transform">
-                  <CheckCircle2 className="w-6 h-6" />
-                </button>
-              </div>
-            )}
-          </div>
-        </GlassCard>
-      ))
-    )}
-  </motion.div>
-);
-
-// ── Menu Tab ──────────────────────────────────────────────────────────────────
-const MenuTab: React.FC<{
-  menu: MenuItem[];
-  outletId: string;
-  onSaveItem?: (item: Partial<MenuItem> & { name: string; price: number; category: string }) => Promise<void>;
-  onDeleteItem?: (id: string) => Promise<void>;
-  onToggleAvailability?: (id: string, isAvailable: boolean) => void;
-}> = ({ menu, onSaveItem, onDeleteItem, onToggleAvailability }) => {
-  const [modal, setModal] = useState<Partial<MenuItem> | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploading(true);
-    try { const url = await uploadFoodImage(file); setModal(p => ({ ...p, imageUrl: url })); }
-    catch { /* silent */ } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
-  };
-
-  const handleSave = async () => {
-    if (!modal?.name || !modal.price || !modal.category || !onSaveItem) return;
-    setSaving(true); await onSaveItem(modal as any); setSaving(false); setModal(null);
-  };
-
-  return (
-    <motion.div key="menu-tab" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">{menu.length} items · {menu.filter(m => m.isAvailable).length} available</p>
-        <button onClick={() => setModal({ ...EMPTY_ITEM })}
-          className="flex items-center gap-2 px-4 py-2 bg-klu-red rounded-2xl text-white text-xs font-black shadow-lg shadow-klu-red/30 active:scale-95 transition-all">
-          <Plus className="w-3.5 h-3.5" /> Add Item
-        </button>
+      <div className="text-center py-8">
+        <Store className="w-16 h-16 text-white/10 mx-auto mb-4" />
+        <h3 className="text-2xl font-black mb-2">No Outlet Assigned</h3>
+        <p className="text-white/30 text-sm">Create a new outlet or claim an existing one</p>
       </div>
 
-      {menu.length === 0 ? (
-        <div className="text-center py-16 glass-frosted rounded-[32px] border border-white/10">
-          <UtensilsCrossed className="w-12 h-12 text-white/10 mx-auto mb-3" />
-          <p className="text-white/30 font-bold">No menu items yet</p>
-          <p className="text-white/20 text-xs mt-1">Tap "Add Item" to get started</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {menu.map(item => (
-            <motion.div key={item.id} layout className="glass-frosted rounded-[24px] border border-white/10 p-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
-                <img src={item.imageUrl || `https://picsum.photos/seed/${item.id}/100`}
-                  className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={item.name}
-                  onError={e => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${item.id}/100`; }} />
+      {outlets.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Claim Existing Outlet</p>
+          {outlets.map(o => (
+            <button key={o.id} onClick={() => onAssignOutlet?.(o.id)}
+              className="w-full glass-frosted rounded-2xl border border-white/10 p-4 flex items-center gap-3 hover:border-white/20 transition-all text-left">
+              <Store className="w-5 h-5 text-white/30 flex-shrink-0" />
+              <div>
+                <p className="font-black text-sm">{o.name}</p>
+                <p className="text-white/30 text-xs">{o.blockName}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-sm truncate">{item.name}</p>
-                <p className="text-white/40 text-xs mt-0.5">₹{item.price} · {item.category}</p>
-                <span className={cn('text-[9px] font-black uppercase', item.isAvailable ? 'text-emerald-400' : 'text-red-400')}>
-                  {item.isAvailable ? 'Available' : 'Unavailable'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => onToggleAvailability?.(item.id, !item.isAvailable)}
-                  className={cn('w-10 h-5 rounded-full transition-colors relative', item.isAvailable ? 'bg-emerald-500' : 'bg-white/10')}>
-                  <div className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow', item.isAvailable ? 'right-0.5' : 'left-0.5')} />
-                </button>
-                <button onClick={() => setModal({ ...item })} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/30 hover:text-white">
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => setDeleteId(item.id)} className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
+            </button>
           ))}
         </div>
       )}
 
-      {/* Add/Edit Modal */}
-      <AnimatePresence>
-        {modal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end justify-center p-4 bg-black/70 backdrop-blur-md"
-            onClick={e => { if (e.target === e.currentTarget) setModal(null); }}>
-            <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-sm glass-frosted rounded-[32px] border border-white/10 p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <p className="font-black text-lg">{modal.id ? 'Edit Item' : 'Add Item'}</p>
-                <button onClick={() => setModal(null)} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/30"><X className="w-4 h-4" /></button>
-              </div>
-              {/* Image */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2 flex items-center gap-1.5"><Image className="w-4 h-4" /> Photo</p>
-                <div className="flex gap-3 items-center">
-                  <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
-                    {modal.imageUrl ? <img src={modal.imageUrl} className="w-full h-full object-cover" alt="preview" /> : <div className="w-full h-full flex items-center justify-center text-white/10"><Image className="w-6 h-6" /></div>}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                    <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                      className="w-full flex items-center justify-center gap-2 h-10 bg-white/5 border border-white/10 rounded-xl text-xs font-black text-white/50 hover:text-white transition-all disabled:opacity-50">
-                      {uploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</> : <><Upload className="w-3.5 h-3.5" /> Upload</>}
-                    </button>
-                    <input type="url" placeholder="or paste URL" value={modal.imageUrl || ''}
-                      onChange={e => setModal(p => ({ ...p, imageUrl: e.target.value }))} className="input-field text-xs h-9" />
-                  </div>
+      <div>
+        <button onClick={() => setCreating(v => !v)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-white/10 bg-white/5 text-white/60 font-black text-sm hover:text-white transition-all">
+          <Plus className="w-4 h-4" /> Create New Outlet
+        </button>
+        <AnimatePresence>
+          {creating && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-4 space-y-3">
+              {[
+                { key: 'name', label: 'Outlet Name', placeholder: "Friend's Canteen" },
+                { key: 'upiId', label: 'UPI ID', placeholder: 'merchant@upi' },
+                { key: 'description', label: 'Description', placeholder: 'Short description' },
+              ].map(f => (
+                <div key={f.key}>
+                  <p className="text-[10px] font-black uppercase text-white/30 mb-1">{f.label}</p>
+                  <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
                 </div>
-              </div>
-              <MField label="Name" icon={<Tag className="w-4 h-4" />}>
-                <input type="text" placeholder="e.g. Chicken Biryani" value={modal.name || ''}
-                  onChange={e => setModal(p => ({ ...p, name: e.target.value }))} className="input-field" autoFocus />
-              </MField>
-              <div className="grid grid-cols-2 gap-3">
-                <MField label="Price (₹)" icon={<IndianRupee className="w-4 h-4" />}>
-                  <input type="number" inputMode="numeric" placeholder="0" value={modal.price || ''}
-                    onChange={e => setModal(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} className="input-field" />
-                </MField>
-                <MField label="Prep Time" icon={<Clock className="w-4 h-4" />}>
-                  <input type="text" placeholder="10m" value={modal.prepTime || ''}
-                    onChange={e => setModal(p => ({ ...p, prepTime: e.target.value }))} className="input-field" />
-                </MField>
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Category</p>
-                <div className="flex flex-wrap gap-2">
-                  {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => setModal(p => ({ ...p, category: cat }))}
-                      className={cn('px-3 py-1.5 rounded-full text-xs font-black border transition-all',
-                        modal.category === cat ? 'bg-klu-red border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/40')}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <MField label="Description (optional)" icon={<Tag className="w-4 h-4" />}>
-                <input type="text" placeholder="Short description" value={modal.description || ''}
-                  onChange={e => setModal(p => ({ ...p, description: e.target.value }))} className="input-field" />
-              </MField>
-              <ClayButton onClick={handleSave} className="w-full h-12" disabled={saving || uploading || !modal.name || !modal.price}>
-                {saving ? 'Saving...' : modal.id ? 'Save Changes' : 'Add to Menu'}
+              ))}
+              <ClayButton onClick={handleCreate} disabled={saving} className="w-full">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create Outlet'}
               </ClayButton>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete confirm */}
-      <AnimatePresence>
-        {deleteId && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/70 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              className="glass-frosted rounded-[32px] border border-white/10 p-8 max-w-xs w-full text-center shadow-2xl">
-              <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-7 h-7 text-red-400" />
-              </div>
-              <p className="font-black text-lg mb-1">Delete item?</p>
-              <p className="text-white/30 text-sm mb-6">This can't be undone.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setDeleteId(null)} className="flex-1 py-3 bg-white/5 rounded-2xl text-white/50 font-bold text-sm">Cancel</button>
-                <button onClick={async () => { await onDeleteItem?.(deleteId); setDeleteId(null); }}
-                  className="flex-1 py-3 bg-red-500 rounded-2xl text-white font-black text-sm">Delete</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
-// ── Analytics Tab ─────────────────────────────────────────────────────────────
-const AnalyticsTab: React.FC<{ orders: Order[]; todaySales: number; totalSales: number; avgOrder: number }> = ({ orders, todaySales, totalSales, avgOrder }) => {
-  const completed = orders.filter(o => o.status === 'picked_up').length;
-  const cancelled = orders.filter(o => o.status === 'cancelled').length;
-  const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
-
-  // Last 7 days sales
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const dayOrders = orders.filter(o => {
-      const od = new Date(o.createdAt || '');
-      return od.getDate() === d.getDate() && od.getMonth() === d.getMonth();
-    });
-    return { day: d.toLocaleDateString('en', { weekday: 'short' }), sales: dayOrders.reduce((s, o) => s + (o.vendorAmount || 0), 0), count: dayOrders.length };
-  });
-  const maxSales = Math.max(...last7.map(d => d.sales), 1);
-
-  return (
-    <motion.div key="analytics-tab" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-      {/* Revenue cards */}
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: "Today's Revenue", value: `₹${todaySales}`, sub: 'vs yesterday', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-          { label: 'Total Revenue', value: `₹${totalSales}`, sub: 'all time', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-          { label: 'Avg Order Value', value: `₹${avgOrder}`, sub: 'per order', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-          { label: 'Total Orders', value: orders.length, sub: `${completed} completed`, color: 'text-klu-red', bg: 'bg-klu-red/10 border-klu-red/20' },
-        ].map(s => (
-          <GlassCard key={s.label} className={cn('p-4 border', s.bg)}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/30">{s.label}</p>
-            <p className={cn('text-2xl font-black mt-1', s.color)}>{s.value}</p>
-            <p className="text-[10px] text-white/20 mt-0.5">{s.sub}</p>
-          </GlassCard>
-        ))}
-      </div>
-
-      {/* 7-day bar chart */}
-      <GlassCard className="p-4">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-4">Last 7 Days</p>
-        <div className="flex items-end gap-2 h-24">
-          {last7.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full rounded-t-lg bg-klu-red/20 border border-klu-red/10 transition-all relative overflow-hidden"
-                style={{ height: `${Math.max((d.sales / maxSales) * 80, d.sales > 0 ? 8 : 2)}px` }}>
-                <div className="absolute inset-0 bg-gradient-to-t from-klu-red/60 to-klu-red/20" />
-              </div>
-              <p className="text-[9px] font-black text-white/30">{d.day}</p>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-
-      {/* Order status breakdown */}
-      <GlassCard className="p-4 space-y-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Order Status</p>
-        {[
-          { label: 'Completed', count: completed, color: 'bg-emerald-500', text: 'text-emerald-400' },
-          { label: 'In Progress', count: pending, color: 'bg-blue-500', text: 'text-blue-400' },
-          { label: 'Cancelled', count: cancelled, color: 'bg-red-500', text: 'text-red-400' },
-        ].map(s => (
-          <div key={s.label} className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color.replace('bg-', '') }} />
-            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-              <div className={cn('h-full rounded-full transition-all', s.color)}
-                style={{ width: `${orders.length ? (s.count / orders.length) * 100 : 0}%` }} />
-            </div>
-            <span className={cn('text-xs font-black w-6 text-right', s.text)}>{s.count}</span>
-            <span className="text-[10px] text-white/30 w-20">{s.label}</span>
-          </div>
-        ))}
-      </GlassCard>
-    </motion.div>
-  );
-};
-
-// ── Outlet Tab ────────────────────────────────────────────────────────────────
-const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { name: string }) => Promise<void> }> = ({ outlet, onSave }) => {
-  const [form, setForm] = useState({ name: outlet.name, description: outlet.description, blockName: outlet.blockName, timings: outlet.timings || '', upiId: outlet.upiId, category: outlet.category, isOpen: outlet.isOpen });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = async () => {
-    if (!onSave) return;
-    setSaving(true);
-    await onSave({ ...outlet, ...form });
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <motion.div key="outlet-tab" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-      {/* Outlet image preview */}
-      <div className="relative h-36 rounded-[24px] overflow-hidden border border-white/10">
-        <img src={outlet.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={outlet.name}
-          onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400'; }} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-3 left-4 flex items-center gap-2">
-          {outlet.rating && (
-            <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-lg">
-              <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-              <span className="text-xs font-black text-white">{outlet.rating}</span>
-            </div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
-
-      {/* Open/Closed toggle */}
-      <GlassCard className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-black text-sm">Outlet Status</p>
-            <p className="text-xs text-white/30 mt-0.5">{form.isOpen ? 'Accepting orders' : 'Not accepting orders'}</p>
-          </div>
-          <button onClick={() => setForm(f => ({ ...f, isOpen: !f.isOpen }))}
-            className={cn('flex items-center gap-2 px-4 py-2 rounded-xl border font-black text-xs transition-all',
-              form.isOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400')}>
-            {form.isOpen ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-            {form.isOpen ? 'Open' : 'Closed'}
-          </button>
-        </div>
-      </GlassCard>
-
-      {/* Edit fields */}
-      <GlassCard className="p-4 space-y-4">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Outlet Details</p>
-        {[
-          { label: 'Name', key: 'name', placeholder: "Friend's Canteen" },
-          { label: 'Description', key: 'description', placeholder: 'Short description' },
-          { label: 'Block / Location', key: 'blockName', placeholder: 'e.g. Tulip Hostel' },
-          { label: 'Timings', key: 'timings', placeholder: '7am – 10pm' },
-          { label: 'UPI ID', key: 'upiId', placeholder: 'merchant@okaxis' },
-        ].map(f => (
-          <div key={f.key}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5">{f.label}</p>
-            <input type="text" placeholder={f.placeholder} value={(form as any)[f.key] || ''}
-              onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-              className="input-field" />
-          </div>
-        ))}
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Category</p>
-          <div className="flex flex-wrap gap-2">
-            {['Meals', 'Snack', 'Breakfast', 'Beverages', 'Multi'].map(cat => (
-              <button key={cat} onClick={() => setForm(p => ({ ...p, category: cat }))}
-                className={cn('px-3 py-1.5 rounded-full text-xs font-black border transition-all',
-                  form.category === cat ? 'bg-klu-red border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/40')}>
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </GlassCard>
-
-      <ClayButton onClick={handleSave} className="w-full h-12" disabled={saving}>
-        {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
-      </ClayButton>
     </motion.div>
   );
 };
