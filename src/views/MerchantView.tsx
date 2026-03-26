@@ -125,12 +125,67 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
 
   const activeMenu = outletMenus[activeOutlet?.id || ''] ?? menu;
 
-  const handleAlert = useCallback((alert: PaymentAlertPayload) => {
-    setAlerts(prev => [alert, ...prev].slice(0, 10));
-    if (voiceEnabled) announcePayment(alert.amount, alert.type, alert.fromName);
-  }, [voiceEnabled]);
+  // Payment alerts via Supabase Realtime on transactions table
+  // (Socket.io is not supported on Vercel — replaced with Supabase)
+  useEffect(() => {
+    if (!activeOutlet?.id) return;
+    const ch = supabase.channel(`merchant_alerts_${activeOutlet.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'transactions',
+        filter: `outlet_id=eq.${activeOutlet.id}`,
+      }, ({ new: row }) => {
+        if (!row) return;
+        const alert: PaymentAlertPayload = {
+          type: row.flow === 'Food_Order' ? 'Food_Order' : 'Direct_Pay',
+          status: row.payment_status === 'paid' ? 'confirmed' : 'pending',
+          amount: Number(row.total_amount),
+          fromName: row.student_name || 'Student',
+          outletId: row.outlet_id,
+          token: row.token,
+          note: row.note,
+          orderId: row.id,
+          timestamp: Date.now(),
+        };
+        setAlerts(prev => [alert, ...prev].slice(0, 10));
+        if (voiceEnabled) announcePayment(alert.amount, alert.type, alert.fromName);
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'transactions',
+        filter: `outlet_id=eq.${activeOutlet.id}`,
+      }, ({ new: row }) => {
+        if (row?.payment_status !== 'paid') return;
+        const alert: PaymentAlertPayload = {
+          type: row.flow === 'Food_Order' ? 'Food_Order' : 'Direct_Pay',
+          status: 'confirmed',
+          amount: Number(row.total_amount),
+          fromName: row.student_name || 'Student',
+          outletId: row.outlet_id,
+          token: row.token,
+          note: row.note,
+          orderId: row.id,
+          timestamp: Date.now(),
+        };
+        setAlerts(prev => [alert, ...prev].slice(0, 10));
+        if (voiceEnabled) announcePayment(alert.amount, alert.type, alert.fromName);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [activeOutlet?.id, voiceEnabled]);
 
-  useMerchantSocket({ outletId: activeOutlet?.id || null, onAlert: handleAlert });
+  // Direct order status update — writes straight to Supabase, no prop chain needed
+  const handleUpdateStatus = useCallback(async (orderId: string, status: Order['status']) => {
+    // Optimistic local update
+    setLiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    // Write to DB
+    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+    if (error) {
+      console.error('order status update failed:', error.message);
+      // Revert on failure
+      setLiveOrders(prev => prev.map(o => o.id === orderId ? { ...o } : o));
+    }
+    // Also call the prop so App.tsx state stays in sync
+    onUpdateStatus(orderId, status);
+  }, [onUpdateStatus]);
 
   const handleRefresh = async () => {
     if (!activeOutlet?.id) return;
@@ -275,7 +330,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
       </div>
 
       <AnimatePresence mode="wait">
-        {tab === 'orders'    && <OrdersTab    key="orders"    orders={liveOrders} onUpdateStatus={onUpdateStatus} />}
+        {tab === 'orders'    && <OrdersTab    key="orders"    orders={liveOrders} onUpdateStatus={handleUpdateStatus} />}
         {tab === 'payments'  && <PaymentsTab  key="payments"  transactions={transactions} loading={loadingTx} />}
         {tab === 'analytics' && <AnalyticsTab key="analytics" orders={liveOrders} transactions={transactions} todaySales={todaySales} totalRevenue={totalRevenue} avgOrder={avgOrder} />}
         {tab === 'menu'      && <MenuTab      key={`menu-${activeOutlet?.id}`} menu={activeMenu} outletId={activeOutlet?.id || ''} onSaveItem={(item) => onSaveItem?.(item, activeOutlet?.id)} onDeleteItem={onDeleteItem} onToggleAvailability={onToggleAvailability} />}

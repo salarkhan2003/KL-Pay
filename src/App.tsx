@@ -341,8 +341,19 @@ export default function App() {
       }
     };
     loadOutlets();
-    const ch = supabase.channel('outlets').on('postgres_changes', { event: '*', schema: 'public', table: 'outlets' }, () => {
-      supabase.from('outlets').select('*').then(({ data }) => { if (data) setOutlets(data.map(rowToOutlet)); });
+    const ch = supabase.channel('outlets').on('postgres_changes', { event: '*', schema: 'public', table: 'outlets' }, ({ eventType, new: newRow, old: oldRow }) => {
+      supabase.from('outlets').select('*').then(({ data }) => {
+        if (data) {
+          const mapped = data.map(rowToOutlet);
+          setOutlets(mapped);
+          // Keep selectedOutlet in sync if it was updated/deleted
+          if (eventType === 'DELETE') {
+            setSelectedOutlet(prev => { if (prev?.id === (oldRow as any)?.id) { setView('home'); return null; } return prev; });
+          } else if (eventType === 'UPDATE' && newRow) {
+            setSelectedOutlet(prev => prev?.id === (newRow as any)?.id ? rowToOutlet(newRow) : prev);
+          }
+        }
+      });
     }).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -438,9 +449,19 @@ export default function App() {
       if (data && data.length > 0) setMenuItems(data.map(rowToMenuItem));
       // else keep the seed fallback already shown
     });
-    const ch = supabase.channel(`menu_view_${selectedOutlet.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
-      supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
-    }).subscribe();
+    const ch = supabase.channel(`menu_view_${selectedOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, ({ eventType, new: newRow, old: oldRow }) => {
+        if (eventType === 'DELETE') {
+          setMenuItems(prev => prev.filter(m => m.id !== (oldRow as any)?.id));
+        } else if (newRow) {
+          const mapped = rowToMenuItem(newRow);
+          setMenuItems(prev => {
+            const exists = prev.find(m => m.id === mapped.id);
+            return exists ? prev.map(m => m.id === mapped.id ? mapped : m) : [...prev, mapped];
+          });
+        }
+      })
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [selectedOutlet?.id]);
 
@@ -726,18 +747,43 @@ export default function App() {
 
   const toggleMenuItemAvailability = async (itemId: string, isAvailable: boolean) => {
     await supabase.from('menu_items').update({ is_available: isAvailable }).eq('id', itemId);
+    // Update user's menuItems state immediately if they have this outlet open
+    setMenuItems(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
+    setMerchantMenu(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
   };
 
   const saveMenuItem = async (item: Partial<MenuItem> & { name: string; price: number; category: string }, outletIdOverride?: string) => {
-    const outlet = getMerchantOutlet(outletIdOverride);
+    // Resolve outlet — try override first, then merchant's assigned outlet
+    const outlet = outletIdOverride
+      ? (outlets.find(o => o.id === outletIdOverride) || getMerchantOutlet())
+      : getMerchantOutlet();
     if (!outlet) { showToast('No outlet assigned', 'error'); return; }
     const itemId = item.id || `${outlet.id}_${item.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
-    await upsertMenuItem({ id: itemId, outlet_id: outlet.id, name: item.name, description: item.description || '', price: item.price, image_url: item.imageUrl || '', category: item.category, is_available: item.isAvailable ?? true, prep_time: item.prepTime || '10m' });
+    const row = {
+      id: itemId, outlet_id: outlet.id, name: item.name,
+      description: item.description || '', price: item.price,
+      image_url: item.imageUrl || '', category: item.category,
+      is_available: item.isAvailable ?? true, prep_time: item.prepTime || '10m',
+    };
+    await upsertMenuItem(row);
+    // Update user's menuItems state immediately if they have this outlet open
+    const mapped = rowToMenuItem(row);
+    setMenuItems(prev => {
+      const exists = prev.find(m => m.id === itemId);
+      return exists ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped];
+    });
+    setMerchantMenu(prev => {
+      const exists = prev.find(m => m.id === itemId);
+      return exists ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped];
+    });
     showToast(item.id ? 'Item updated' : 'Item added');
   };
 
   const deleteMenuItem = async (itemId: string, _?: string) => {
     await deleteMenuItemDb(itemId);
+    // Remove from all menu states immediately
+    setMenuItems(prev => prev.filter(m => m.id !== itemId));
+    setMerchantMenu(prev => prev.filter(m => m.id !== itemId));
     showToast('Item deleted');
   };
 
@@ -753,26 +799,38 @@ export default function App() {
     try {
       await upsertOutlet(outletRow);
     } catch (e) {
-      console.warn('upsertOutlet failed (DB may need SQL migration), continuing locally:', e);
+      console.warn('upsertOutlet failed:', e);
     }
-    // Always update local state so UI reflects the new outlet immediately
     const newOutlet = rowToOutlet(outletRow);
+    // Update outlets state — affects both merchant and user views
     setOutlets(prev => {
       const exists = prev.find(o => o.id === id);
       return exists ? prev.map(o => o.id === id ? newOutlet : o) : [...prev, newOutlet];
     });
-    // If merchant creating new outlet with no assignment yet, auto-assign locally
+    // If user has this outlet open, update selectedOutlet too
+    setSelectedOutlet(prev => prev?.id === id ? newOutlet : prev);
+    // Auto-assign if new outlet for merchant
     if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
-      // Try DB assign, but don't block on failure
       supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', id).catch(() => {});
       updateProfile({ merchantOutletId: id });
     }
     showToast(data.id ? 'Outlet updated' : 'Outlet created');
   };
 
-  const deleteOutlet = async (outletId: string) => { await deleteOutletDb(outletId); showToast('Outlet deleted'); };
+  const deleteOutlet = async (outletId: string) => {
+    await deleteOutletDb(outletId);
+    // Remove from outlets state immediately — user sees it gone right away
+    setOutlets(prev => prev.filter(o => o.id !== outletId));
+    // If user has this outlet open, send them back home
+    setSelectedOutlet(prev => { if (prev?.id === outletId) { setView('home'); return null; } return prev; });
+    showToast('Outlet deleted');
+  };
 
-  const updateOrderStatus = async (orderId: string, status: Order['status']) => { await updateOrderStatusDb(orderId, status); };
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    await updateOrderStatusDb(orderId, status);
+    // Keep local merchant orders state in sync
+    setMerchantOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+  };
 
   const deleteOrder = async (orderId: string) => { await deleteOrderDb(orderId); showToast('Order deleted'); setDeleteConfirmId(null); };
 

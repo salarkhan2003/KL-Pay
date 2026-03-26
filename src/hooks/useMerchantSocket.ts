@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { MerchantAlert } from '../types';
+// Socket.io is NOT supported on Vercel (serverless — no persistent process).
+// Payment alerts are delivered via Supabase Realtime instead.
+// This file is kept as a no-op so existing imports don't break.
 
 export interface PaymentAlertPayload {
   type: 'Food_Order' | 'Direct_Pay';
@@ -20,51 +20,19 @@ interface UseMerchantSocketOptions {
   onAlert: (alert: PaymentAlertPayload) => void;
 }
 
-export function useMerchantSocket({ outletId, onAlert }: UseMerchantSocketOptions) {
-  const socketRef = useRef<Socket | null>(null);
-  const onAlertRef = useRef(onAlert);
-  onAlertRef.current = onAlert;
+// No-op — alerts come through Supabase Realtime channels in MerchantView
+export function useMerchantSocket(_options: UseMerchantSocketOptions) {}
 
-  useEffect(() => {
-    if (!outletId) return;
-
-    const socket = io(window.location.origin, { transports: ['websocket', 'polling'] });
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      socket.emit('join_outlet', outletId);
-    });
-
-    socket.on('payment_alert', (data: PaymentAlertPayload) => {
-      onAlertRef.current(data);
-    });
-
-    socket.on('payment_confirmed', (data: PaymentAlertPayload) => {
-      onAlertRef.current({ ...data, status: 'confirmed' });
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [outletId]);
-}
-
-// Voice announcement using Web Speech API
 export function announcePayment(amount: number, flow: 'Food_Order' | 'Direct_Pay', fromName?: string) {
   if (!('speechSynthesis' in window)) return;
-
   const msg = flow === 'Direct_Pay'
     ? `Received rupees ${amount} on KL One from ${fromName || 'a student'}`
     : `New food order received on KL One`;
-
   const utterance = new SpeechSynthesisUtterance(msg);
   utterance.lang = 'en-IN';
   utterance.rate = 0.95;
   utterance.pitch = 1;
   utterance.volume = 1;
-
-  // Cancel any ongoing speech first
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 }
