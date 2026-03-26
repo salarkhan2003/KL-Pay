@@ -8,13 +8,14 @@
       "runtime": "@vercel/node@5.6.15"
     }
   },
-  "rewrites": [
-    { "source": "/api/health",                   "destination": "/api/health" },
-    { "source": "/api/payments/create-session",  "destination": "/api/payments/create-session" },
-    { "source": "/api/payments/direct-pay",      "destination": "/api/payments/direct-pay" },
-    { "source": "/api/payments/webhook",         "destination": "/api/payments/webhook" },
-    { "source": "/api/webhooks/welcome",         "destination": "/api/webhooks/welcome" },
-    { "source": "/api/webhooks/order",           "destination": "/api/webhooks/order" },
-    { "source": "/(.*)",                         "destination": "/index.html" }
+  "routes": [
+    { "src": "/api/health",                   "dest": "/api/health" },
+    { "src": "/api/payments/create-session",  "dest": "/api/payments/create-session" },
+    { "src": "/api/payments/direct-pay",      "dest": "/api/payments/direct-pay" },
+    { "src": "/api/payments/webhook",         "dest": "/api/payments/webhook" },
+    { "src": "/api/webhooks/welcome",         "dest": "/api/webhooks/welcome" },
+    { "src": "/api/webhooks/order",           "dest": "/api/webhooks/order" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

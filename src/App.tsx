@@ -437,16 +437,24 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedOutlet) return;
-    // Fetch from DB immediately — no seed fallback that could overwrite real data
-    supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => {
-      if (data) setMenuItems(data.map(rowToMenuItem));
-    });
+    // Clear stale items from previous outlet immediately
+    setMenuItems([]);
+    // Fetch from DB
+    supabase.from('menu_items').select('*')
+      .eq('outlet_id', selectedOutlet.id)
+      .eq('is_available', true)          // only fetch available items for users
+      .order('name')
+      .then(({ data, error }) => {
+        if (error) console.warn('menu fetch error:', error.message);
+        if (data) setMenuItems(data.map(rowToMenuItem));
+      });
     const ch = supabase.channel(`menu_view_${selectedOutlet.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
-        // Always do a full re-fetch — Supabase Realtime partial payloads miss columns
-        supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => {
-          if (data) setMenuItems(data.map(rowToMenuItem));
-        });
+        supabase.from('menu_items').select('*')
+          .eq('outlet_id', selectedOutlet.id)
+          .eq('is_available', true)
+          .order('name')
+          .then(({ data }) => { if (data) setMenuItems(data.map(rowToMenuItem)); });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
