@@ -116,6 +116,7 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
             isAvailable: r.is_available ?? true, prepTime: r.prep_time,
           })) }));
         });
+    // Always fetch fresh — never rely on stale cache
     fetchMenu();
     const ch = supabase.channel(`mv_menu_${activeOutlet.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${activeOutlet.id}` }, fetchMenu)

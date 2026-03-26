@@ -23,6 +23,10 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
+  // Only show available items to students
+  const availableItems = menuItems.filter(item => item.isAvailable !== false);
+  const isClosed = !outlet.isOpen;
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -54,14 +58,29 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-display text-xl font-black">Menu</h3>
-        {menuItems.length === 0 ? (
-          <div className="text-center py-12 glass-frosted rounded-[28px] border border-white/10">
-            <p className="text-white/30 font-bold text-sm">No items available</p>
+        <div className="flex items-center justify-between">
+          <h3 className="text-display text-xl font-black">Menu</h3>
+          {isClosed && (
+            <span className="text-xs font-black text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full uppercase tracking-widest">
+              Closed
+            </span>
+          )}
+        </div>
+
+        {isClosed && (
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-center">
+            <p className="text-red-400 font-black text-sm">This canteen is currently closed</p>
+            <p className="text-white/30 text-xs mt-1">Check back later or browse other canteens</p>
           </div>
-        ) : (
+        )}
+
+        {!isClosed && availableItems.length === 0 ? (
+          <div className="text-center py-12 glass-frosted rounded-[28px] border border-white/10">
+            <p className="text-white/30 font-bold text-sm">No items available right now</p>
+          </div>
+        ) : !isClosed && (
           <div className="grid gap-4">
-            {menuItems.map((item, idx) => {
+            {availableItems.map((item, idx) => {
               const inCart = cart.find(c => c.id === item.id);
               return (
                 <GlassCard key={item.id} delay={idx * 0.05} className="p-4">
@@ -103,9 +122,9 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
         )}
       </div>
 
-      {/* Sticky cart bar */}
+      {/* Sticky cart bar — only when outlet is open */}
       <AnimatePresence>
-        {cartCount > 0 && (
+        {cartCount > 0 && !isClosed && (
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

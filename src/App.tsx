@@ -437,29 +437,16 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedOutlet) return;
-    // Show seed menu immediately so there's no blank flash
-    const seedFallback = SEED_MENU.filter(m => m.outlet_id === selectedOutlet.id).map(m => ({
-      id: m.id, outletId: m.outlet_id, name: m.name, description: m.description,
-      price: m.price, imageUrl: m.image_url, category: m.category,
-      isAvailable: m.is_available, prepTime: m.prep_time,
-    }));
-    if (seedFallback.length > 0) setMenuItems(seedFallback);
-
+    // Fetch from DB immediately — no seed fallback that could overwrite real data
     supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => {
-      if (data && data.length > 0) setMenuItems(data.map(rowToMenuItem));
-      // else keep the seed fallback already shown
+      if (data) setMenuItems(data.map(rowToMenuItem));
     });
     const ch = supabase.channel(`menu_view_${selectedOutlet.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, ({ eventType, new: newRow, old: oldRow }) => {
-        if (eventType === 'DELETE') {
-          setMenuItems(prev => prev.filter(m => m.id !== (oldRow as any)?.id));
-        } else if (newRow) {
-          const mapped = rowToMenuItem(newRow);
-          setMenuItems(prev => {
-            const exists = prev.find(m => m.id === mapped.id);
-            return exists ? prev.map(m => m.id === mapped.id ? mapped : m) : [...prev, mapped];
-          });
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${selectedOutlet.id}` }, () => {
+        // Always do a full re-fetch — Supabase Realtime partial payloads miss columns
+        supabase.from('menu_items').select('*').eq('outlet_id', selectedOutlet.id).then(({ data }) => {
+          if (data) setMenuItems(data.map(rowToMenuItem));
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -748,8 +735,9 @@ export default function App() {
   const toggleMenuItemAvailability = async (itemId: string, isAvailable: boolean) => {
     const { error } = await supabase.from('menu_items').update({ is_available: isAvailable }).eq('id', itemId);
     if (error) { showToast('Update failed: ' + error.message, 'error'); return; }
-    setMenuItems(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
+    // Update merchant view immediately
     setMerchantMenu(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
+    // Realtime channel handles user-facing menuItems update
   };
 
   const saveMenuItem = async (item: Partial<MenuItem> & { name: string; price: number; category: string }, outletIdOverride?: string) => {
@@ -766,8 +754,9 @@ export default function App() {
     };
     const { error } = await supabase.from('menu_items').upsert(row, { onConflict: 'id' });
     if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
+    // Realtime channel will update menuItems state — no optimistic update needed
+    // But update merchantMenu immediately so merchant sees it right away
     const mapped = rowToMenuItem(row);
-    setMenuItems(prev => { const e = prev.find(m => m.id === itemId); return e ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped]; });
     setMerchantMenu(prev => { const e = prev.find(m => m.id === itemId); return e ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped]; });
     showToast(item.id ? 'Item updated' : 'Item added');
   };
@@ -775,8 +764,9 @@ export default function App() {
   const deleteMenuItem = async (itemId: string, _?: string) => {
     const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
     if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
-    setMenuItems(prev => prev.filter(m => m.id !== itemId));
+    // Update merchant views immediately
     setMerchantMenu(prev => prev.filter(m => m.id !== itemId));
+    // Realtime handles user-facing menuItems
     showToast('Item deleted');
   };
 
