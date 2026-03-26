@@ -270,7 +270,17 @@ export default function App() {
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!profile) return;
-    const fieldMap: Record<string, string> = { displayName: 'display_name', phone: 'phone', kCoins: 'k_coins', streak: 'streak', merchantOutletId: 'merchant_outlet_id' };
+    const fieldMap: Record<string, string> = {
+      displayName: 'display_name',
+      phone: 'phone',
+      kCoins: 'k_coins',
+      streak: 'streak',
+      merchantOutletId: 'merchant_outlet_id',
+      block: 'block',
+      hostel: 'hostel',
+      gender: 'gender',
+      studentId: 'student_id',
+    };
     const dbUpdates: Record<string, any> = {};
     for (const [k, v] of Object.entries(updates)) { if (fieldMap[k]) dbUpdates[fieldMap[k]] = v; }
     if (Object.keys(dbUpdates).length) updateProfileFields(profile.uid, dbUpdates).catch(() => {});
@@ -368,7 +378,33 @@ export default function App() {
 
   useEffect(() => {
     if (!profile) return;
-    supabase.from('support_tickets').select('*').eq('user_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setSupportTickets(data.map(rowToSupportTicket)); });
+    const fetchTickets = () => supabase.from('support_tickets').select('*').eq('user_id', profile.uid).order('created_at', { ascending: false }).then(({ data }) => { if (data) setSupportTickets(data.map(rowToSupportTicket)); });
+    fetchTickets();
+    // Realtime so ticket status updates (resolved/closed) reflect immediately
+    const ch = supabase.channel(`tickets_${profile.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets', filter: `user_id=eq.${profile.uid}` }, fetchTickets)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile?.uid]);
+
+  // Realtime profile sync — keeps k_coins, streak, block live across sessions
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const ch = supabase.channel(`profile_${profile.uid}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.uid}` }, ({ new: row }) => {
+        if (!row) return;
+        const updated: UserProfile = {
+          uid: row.id, email: row.email, displayName: row.display_name || '',
+          role: row.role, phone: row.phone || '', kCoins: row.k_coins || 0,
+          streak: row.streak || 0, block: row.block || '', hostel: row.hostel || '',
+          gender: row.gender || '', studentId: row.student_id || '',
+          merchantOutletId: row.merchant_outlet_id || '',
+        };
+        setProfile(updated);
+        localStorage.setItem('klone-profile', JSON.stringify(updated));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [profile?.uid]);
 
   useEffect(() => {
