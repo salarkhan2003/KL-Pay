@@ -746,14 +746,13 @@ export default function App() {
       : outlets.find(o => o.merchantId === profile?.uid) || (profile?.merchantOutletId ? outlets.find(o => o.id === profile.merchantOutletId) : undefined);
 
   const toggleMenuItemAvailability = async (itemId: string, isAvailable: boolean) => {
-    await supabase.from('menu_items').update({ is_available: isAvailable }).eq('id', itemId);
-    // Update user's menuItems state immediately if they have this outlet open
+    const { error } = await supabase.from('menu_items').update({ is_available: isAvailable }).eq('id', itemId);
+    if (error) { showToast('Update failed: ' + error.message, 'error'); return; }
     setMenuItems(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
     setMerchantMenu(prev => prev.map(m => m.id === itemId ? { ...m, isAvailable } : m));
   };
 
   const saveMenuItem = async (item: Partial<MenuItem> & { name: string; price: number; category: string }, outletIdOverride?: string) => {
-    // Resolve outlet — try override first, then merchant's assigned outlet
     const outlet = outletIdOverride
       ? (outlets.find(o => o.id === outletIdOverride) || getMerchantOutlet())
       : getMerchantOutlet();
@@ -765,23 +764,17 @@ export default function App() {
       image_url: item.imageUrl || '', category: item.category,
       is_available: item.isAvailable ?? true, prep_time: item.prepTime || '10m',
     };
-    await upsertMenuItem(row);
-    // Update user's menuItems state immediately if they have this outlet open
+    const { error } = await supabase.from('menu_items').upsert(row, { onConflict: 'id' });
+    if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
     const mapped = rowToMenuItem(row);
-    setMenuItems(prev => {
-      const exists = prev.find(m => m.id === itemId);
-      return exists ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped];
-    });
-    setMerchantMenu(prev => {
-      const exists = prev.find(m => m.id === itemId);
-      return exists ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped];
-    });
+    setMenuItems(prev => { const e = prev.find(m => m.id === itemId); return e ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped]; });
+    setMerchantMenu(prev => { const e = prev.find(m => m.id === itemId); return e ? prev.map(m => m.id === itemId ? mapped : m) : [...prev, mapped]; });
     showToast(item.id ? 'Item updated' : 'Item added');
   };
 
   const deleteMenuItem = async (itemId: string, _?: string) => {
-    await deleteMenuItemDb(itemId);
-    // Remove from all menu states immediately
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+    if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
     setMenuItems(prev => prev.filter(m => m.id !== itemId));
     setMerchantMenu(prev => prev.filter(m => m.id !== itemId));
     showToast('Item deleted');
@@ -796,20 +789,11 @@ export default function App() {
       block_name: data.blockName || 'CSE', category: data.category || 'Meals',
       upi_id: data.upiId || '', timings: data.timings || '8am – 9pm', rating: data.rating || 4.0,
     };
-    try {
-      await upsertOutlet(outletRow);
-    } catch (e) {
-      console.warn('upsertOutlet failed:', e);
-    }
+    const { error } = await supabase.from('outlets').upsert(outletRow, { onConflict: 'id' });
+    if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
     const newOutlet = rowToOutlet(outletRow);
-    // Update outlets state — affects both merchant and user views
-    setOutlets(prev => {
-      const exists = prev.find(o => o.id === id);
-      return exists ? prev.map(o => o.id === id ? newOutlet : o) : [...prev, newOutlet];
-    });
-    // If user has this outlet open, update selectedOutlet too
+    setOutlets(prev => { const e = prev.find(o => o.id === id); return e ? prev.map(o => o.id === id ? newOutlet : o) : [...prev, newOutlet]; });
     setSelectedOutlet(prev => prev?.id === id ? newOutlet : prev);
-    // Auto-assign if new outlet for merchant
     if (profile?.role === 'merchant' && !profile.merchantOutletId && !data.id) {
       supabase.from('outlets').update({ merchant_id: profile.uid }).eq('id', id).catch(() => {});
       updateProfile({ merchantOutletId: id });
@@ -818,10 +802,9 @@ export default function App() {
   };
 
   const deleteOutlet = async (outletId: string) => {
-    await deleteOutletDb(outletId);
-    // Remove from outlets state immediately — user sees it gone right away
+    const { error } = await supabase.from('outlets').delete().eq('id', outletId);
+    if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
     setOutlets(prev => prev.filter(o => o.id !== outletId));
-    // If user has this outlet open, send them back home
     setSelectedOutlet(prev => { if (prev?.id === outletId) { setView('home'); return null; } return prev; });
     showToast('Outlet deleted');
   };

@@ -142,3 +142,24 @@ join information_schema.columns c
 where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
 group by t.table_name
 order by t.table_name;
+
+-- ── 9. Verify outlets + menu_items columns exist (run if saves still fail) ────
+-- These are the exact columns the app writes — if any are missing, upsert fails
+alter table public.outlets add column if not exists image_url   text default '';
+alter table public.outlets add column if not exists is_open     boolean not null default true;
+alter table public.outlets add column if not exists name        text;
+alter table public.outlets add column if not exists description text default '';
+
+alter table public.menu_items add column if not exists image_url    text default '';
+alter table public.menu_items add column if not exists is_available boolean not null default true;
+alter table public.menu_items add column if not exists prep_time    text default '10m';
+alter table public.menu_items add column if not exists description  text default '';
+alter table public.menu_items add column if not exists outlet_id    text;
+alter table public.menu_items add column if not exists price        numeric(10,2);
+
+-- Confirm what columns each table has right now
+select table_name, column_name, data_type
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in ('outlets', 'menu_items')
+order by table_name, ordinal_position;
