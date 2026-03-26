@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, Mail, Phone, ArrowRight, AlertCircle, Loader2,
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
-  CheckCircle2, User, Hash, Home, Lock, Timer,
+  CheckCircle2, User, Hash, Home, Lock, Timer, Building2,
 } from 'lucide-react';
 import {
-  registerUser, loginUser, getAuthErrorMessage,
+  registerUser, getAuthErrorMessage,
   ProfileExtras, saveUserProfile,
 } from '../auth';
 import { supabase } from '../supabase';
@@ -16,16 +16,10 @@ import { cn } from '../utils';
 
 const DEV_PIN = 'KLU2026';
 
-const HOSTELS: { name: string; image?: string }[] = [
-  { name: 'Tulip Hostel', image: 'https://hnezkwnefmjvbdwlyubj.supabase.co/storage/v1/object/public/media/tulip-hostel.jpeg' },
-  { name: 'Day Scholar' },
-  { name: 'Other' },
-];
-
 const GENDERS = [
-  { value: 'male', label: 'Male' },
+  { value: 'male',   label: 'Male'   },
   { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
+  { value: 'other',  label: 'Other'  },
 ];
 
 interface LoginPageProps {
@@ -138,7 +132,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
     if (!regName.trim()) { setRegError('Enter your full name.'); return; }
     if (!regUnivId.trim()) { setRegError('Enter your University ID.'); return; }
     if (!regGender) { setRegError('Select your gender.'); return; }
-    if (!regHostel) { setRegError('Select your hostel.'); return; }
+    if (!regHostel.trim()) { setRegError('Enter your hostel or residence name.'); return; }
     if (!regEmail.trim()) { setRegError('Enter your email.'); return; }
     if (!regPhone || regPhone.length < 10) { setRegError('Enter a valid 10-digit mobile number.'); return; }
     if (regPassword.length < 6) { setRegError('Password must be at least 6 characters.'); return; }
@@ -243,7 +237,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                 <div className="relative">
                   <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
                   <input type="text" placeholder="e.g. FRIENDS2024"
-                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20 uppercase tracking-widest"
+                    className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20 uppercase tracking-widest"
+                    style={{ colorScheme: 'dark' }}
                     value={merchantCode}
                     onChange={e => { setMerchantCode(e.target.value.toUpperCase()); setMerchantCodeError(''); }}
                     onKeyDown={e => e.key === 'Enter' && handleMerchantCodeLogin()}
@@ -275,7 +270,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                 ))}
               </div>
 
-              <GlassCard className="p-6">
+              <GlassCard className="p-6 bg-[#1a0a0e]/80">
                 <AnimatePresence mode="wait">
 
                   {/* LOGIN */}
@@ -330,20 +325,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
 
                       {/* Hostel */}
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Hostel</p>
-                        <div className="space-y-2">
-                          {HOSTELS.map(h => (
-                            <button key={h.name} onClick={() => setRegHostel(h.name)}
-                              className={cn('w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left',
-                                regHostel === h.name ? 'bg-klu-red/10 border-klu-red text-white' : 'bg-white/5 border-white/10 text-white/50')}>
-                              {h.image
-                                ? <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-white/10"><img src={h.image} alt={h.name} className="w-full h-full object-cover" /></div>
-                                : <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0"><Home className="w-4 h-4 text-white/20" /></div>
-                              }
-                              <span className="font-black text-sm">{h.name}</span>
-                              {regHostel === h.name && <CheckCircle2 className="w-4 h-4 text-klu-red ml-auto flex-shrink-0" />}
-                            </button>
-                          ))}
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Hostel / Residence</p>
+                        <div className="relative">
+                          <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder="e.g. Vindhya Hostel, Day Scholar..."
+                            value={regHostel}
+                            onChange={e => setRegHostel(e.target.value)}
+                            style={{ colorScheme: 'dark' }}
+                            className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50"
+                          />
                         </div>
                       </div>
 
@@ -464,7 +456,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                       <input ref={pinRef} type={showPin ? 'text' : 'password'} placeholder="Enter dev PIN"
                         value={pin} onChange={e => { setPin(e.target.value); setPinError(''); }}
                         onKeyDown={e => e.key === 'Enter' && handlePinSubmit()}
-                        className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-4 pr-12 text-lg font-black tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-white placeholder:text-white/20 placeholder:tracking-normal"
+                        className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl px-4 pr-12 text-lg font-black tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-white placeholder:text-white/20 placeholder:tracking-normal"
                         style={{ colorScheme: 'dark' }} />
                       <button onClick={() => setShowPin(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60">
                         {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -508,11 +500,17 @@ const InputField: React.FC<{
   value: string; onChange: (v: string) => void; onEnter?: () => void;
 }> = ({ icon, type, placeholder, value, onChange, onEnter }) => (
   <div className="relative">
-    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20">{icon}</span>
-    <input type={type} placeholder={placeholder} value={value}
+    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none">{icon}</span>
+    <input
+      type={type}
+      placeholder={placeholder}
+      value={value}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && onEnter?.()}
-      className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20" />
+      autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : 'off'}
+      style={{ colorScheme: 'dark' }}
+      className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50"
+    />
   </div>
 );
 
@@ -521,12 +519,17 @@ const PasswordField: React.FC<{
   onToggle: () => void; onChange: (v: string) => void; onEnter?: () => void;
 }> = ({ placeholder, value, show, onToggle, onChange, onEnter }) => (
   <div className="relative">
-    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
-    <input type={show ? 'text' : 'password'} placeholder={placeholder} value={value}
+    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none" />
+    <input
+      type={show ? 'text' : 'password'}
+      placeholder={placeholder}
+      value={value}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && onEnter?.()}
-      className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20"
-      style={{ colorScheme: 'dark' }} />
+      autoComplete="current-password"
+      style={{ colorScheme: 'dark' }}
+      className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-12 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50"
+    />
     <button type="button" onClick={onToggle} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60">
       {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
     </button>

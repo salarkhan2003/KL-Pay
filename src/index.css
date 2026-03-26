@@ -120,3 +120,17 @@ body {
   border-radius: 10px;
 }
 
+
+/* ── Kill browser autofill white flash ───────────────────────────────────────
+   Chrome/Safari inject a white background on autofilled inputs.
+   Override it with a dark box-shadow inset trick — the only reliable fix.     */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 9999px #1a0a0e inset !important;
+  box-shadow: 0 0 0 9999px #1a0a0e inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-in-out 0s;
+}
