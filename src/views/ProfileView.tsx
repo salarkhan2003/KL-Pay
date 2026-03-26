@@ -6,6 +6,7 @@ import {
   GraduationCap, BarChart2, UtensilsCrossed, Users, ArrowUpRight,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
+import { BlockPicker } from '../components/BlockPicker';
 import { cn } from '../utils';
 import { UserProfile, Outlet } from '../types';
 
@@ -29,6 +30,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState(profile?.phone || '');
   const [saving, setSaving] = useState(false);
+  const [isEditingBlock, setIsEditingBlock] = useState(false);
+  const [newBlock, setNewBlock] = useState(profile?.block || 'CSE');
 
   const saveName = async () => {
     if (!newName.trim()) return;
@@ -45,6 +48,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     await onUpdateProfile({ phone: cleaned });
     setSaving(false);
     setIsEditingPhone(false);
+  };
+
+  const saveBlock = async (block: string) => {
+    setNewBlock(block);
+    await onUpdateProfile({ block });
   };
 
   const role = profile?.role || 'student';
@@ -139,12 +147,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <p className="text-lg font-black">{profile?.streak || 0}</p>
               <p className="text-[9px] font-black uppercase text-white/30">Streak</p>
             </GlassCard>
-            <GlassCard className="p-3 flex flex-col items-center text-center">
+            <GlassCard className="p-3 flex flex-col items-center text-center cursor-pointer active:scale-95 transition-all"
+              onClick={() => setIsEditingBlock(v => !v)}>
               <Shield className="w-5 h-5 text-blue-400 mb-1" />
-              <p className="text-lg font-black capitalize">{profile?.block || '—'}</p>
-              <p className="text-[9px] font-black uppercase text-white/30">Block</p>
+              <p className="text-lg font-black capitalize truncate w-full text-center">{profile?.block || '—'}</p>
+              <p className="text-[9px] font-black uppercase text-white/30">Block ✎</p>
             </GlassCard>
           </div>
+
+          {isEditingBlock && (
+            <GlassCard className="p-4">
+              <BlockPicker
+                value={newBlock}
+                onChange={b => { saveBlock(b); setIsEditingBlock(false); }}
+                label="Your Block / Hostel"
+              />
+              <button onClick={() => setIsEditingBlock(false)} className="mt-3 text-xs text-white/30 hover:text-white font-black">Cancel</button>
+            </GlassCard>
+          )}
           <MenuList items={[
             { label: 'Order History',       icon: History,      view: 'orders' },
             { label: 'Transaction History', icon: ArrowUpRight, view: 'transactions' },
@@ -222,6 +242,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <span className="font-bold text-sm">Logout</span>
         </div>
       </button>
+
+      {/* Legal links */}
+      <div className="flex items-center justify-center gap-4 pb-2">
+        <button onClick={() => onSwitchView('terms')} className="text-[10px] text-white/20 hover:text-white/50 transition-colors underline">Terms & Conditions</button>
+        <span className="text-white/10">·</span>
+        <button onClick={() => onSwitchView('privacy')} className="text-[10px] text-white/20 hover:text-white/50 transition-colors underline">Privacy Policy</button>
+      </div>
     </motion.div>
   );
 };

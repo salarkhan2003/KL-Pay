@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
+import { BlockPicker, PRESET_BLOCKS } from '../components/BlockPicker';
 import { cn } from '../utils';
 import { Order, Outlet, MenuItem } from '../types';
 import { supabase } from '../supabase';
@@ -21,10 +22,7 @@ interface AdminViewProps {
   onDeleteMenuItem: (itemId: string, outletId: string) => Promise<void>;
 }
 
-const BLOCKS = [
-  'Tulip Hostel', 'Himalaya Hostel', 'Kanchan Ganga Hostel',
-  'CSE', 'EEE', 'MECH', 'CIVIL', 'R&D', 'FED', 'SDC', 'C',
-];
+const BLOCKS = PRESET_BLOCKS;
 const CATEGORIES = ['Meals', 'Cafe', 'Bakery', 'Juice', 'Snacks'];
 const ITEM_CATS  = ['Main', 'Snack', 'Breakfast', 'Beverage', 'Juice', 'Dessert'];
 const EMPTY_OUTLET: Partial<Outlet> = { name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', imageUrl: '', isOpen: true, timings: '8am - 9pm' };
@@ -283,13 +281,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <Modal title={outletModal.id ? 'Edit Outlet' : 'Add Outlet'} onClose={() => setOutletModal(null)}>
             {/* Block / Location */}
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">
-                <Store className="w-4 h-4" /> Block / Location
-              </p>
-              <select className="input-field" value={outletModal.blockName || 'Tulip Hostel'}
-                onChange={e => setOutletModal(p => ({ ...p!, blockName: e.target.value, name: '' }))}>
-                {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
+              <BlockPicker
+                value={outletModal.blockName || 'Tulip Hostel'}
+                onChange={b => setOutletModal(p => ({ ...p!, blockName: b, name: '' }))}
+                compact
+                label="Block / Location"
+              />
             </div>
 
             {/* Canteen Name — type freely or pick a preset */}

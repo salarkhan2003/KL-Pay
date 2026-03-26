@@ -1,16 +1,13 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ChefHat, CheckCircle2, Phone, Zap, ShoppingBag, ScanLine, Bell, Volume2,
-  BarChart2, TrendingUp, Package, Clock, Plus, Trash2, X,
-  IndianRupee, Tag, Image, Upload, Loader2, Store, ToggleLeft, ToggleRight,
-  UtensilsCrossed, Star, MapPin, Edit2, CreditCard, Link, XCircle,
-  ArrowUpRight, Receipt, Hash, Calendar, Users, Wallet, Activity,
-  CheckCheck, AlertCircle, RefreshCw, Filter, ChevronDown, ChevronUp,
-  TrendingDown, Award, Percent,
+  ShoppingBag, ScanLine, Bell, Volume2, BarChart2, TrendingUp, Package, Clock,
+  Plus, Trash2, Loader2, Store, ToggleLeft, ToggleRight, UtensilsCrossed,
+  MapPin, Edit2, XCircle, Wallet, CheckCheck, RefreshCw, ChevronDown, IndianRupee,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
+import { BlockPicker } from '../components/BlockPicker';
 import { cn } from '../utils';
 import { Order, Outlet, MenuItem, Transaction } from '../types';
 import { useMerchantSocket, announcePayment, PaymentAlertPayload } from '../hooks/useMerchantSocket';
@@ -23,47 +20,28 @@ interface MerchantViewProps {
   onUpdateStatus: (orderId: string, status: Order['status']) => void;
   onSwitchView: (view: any) => void;
   menu?: MenuItem[];
-  onSaveItem?: (item: Partial<MenuItem> & { name: string; price: number; category: string }) => Promise<void>;
+  onSaveItem?: (item: Partial<MenuItem> & { name: string; price: number; category: string }, outletId?: string) => Promise<void>;
   onDeleteItem?: (itemId: string) => Promise<void>;
   onToggleAvailability?: (itemId: string, isAvailable: boolean) => void;
   onSaveOutlet?: (data: Partial<Outlet> & { name: string }) => Promise<void>;
   onAssignOutlet?: (outletId: string) => Promise<void>;
+  allMerchantOutlets?: Outlet[];
 }
 
 const CATEGORIES = ['Main', 'Snack', 'Breakfast', 'Beverage', 'Juice', 'Dessert'];
 const OUTLET_CATS = ['Meals', 'Snacks', 'Breakfast', 'Beverages', 'Juice', 'Multi'];
-const BLOCKS = ['Tulip Hostel', 'Himalaya Hostel', 'Kanchan Ganga Hostel', 'CSE', 'EEE', 'MECH', 'CIVIL', 'R&D', 'FED', 'SDC'];
-const EMPTY_ITEM: Partial<MenuItem> = { name: '', price: 0, category: 'Main', prepTime: '10m', description: '', imageUrl: '', isAvailable: true };
-const EMPTY_OUTLET_FORM = { name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', imageUrl: '', timings: '8am – 9pm', isOpen: true };
-
-async function uploadFoodImage(file: File): Promise<string> {
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `food/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-  const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
-  if (error) throw error;
-  const { data } = supabase.storage.from('media').getPublicUrl(path);
-  return data.publicUrl;
-}
-
 type DashTab = 'orders' | 'payments' | 'analytics' | 'menu' | 'outlet';
 
-const MField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
-  <div>
-    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5 flex items-center gap-1.5">{icon}{label}</p>
-    {children}
-  </div>
-);
-
-const StatusBadge: React.FC<{ status: Order['status'] | Order['paymentStatus'] }> = ({ status }) => {
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const cfg: Record<string, { color: string; label: string }> = {
-    pending:    { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   label: 'Pending' },
-    preparing:  { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',      label: 'Preparing' },
-    ready:      { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Ready' },
-    picked_up:  { color: 'bg-white/10 text-white/40 border-white/10',            label: 'Picked Up' },
-    cancelled:  { color: 'bg-red-500/20 text-red-400 border-red-500/30',         label: 'Cancelled' },
-    paid:       { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Paid' },
-    unpaid:     { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   label: 'Unpaid' },
-    failed:     { color: 'bg-red-500/20 text-red-400 border-red-500/30',         label: 'Failed' },
+    pending:   { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',      label: 'Pending' },
+    preparing: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',         label: 'Preparing' },
+    ready:     { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Ready' },
+    picked_up: { color: 'bg-white/10 text-white/40 border-white/10',               label: 'Picked Up' },
+    cancelled: { color: 'bg-red-500/20 text-red-400 border-red-500/30',            label: 'Cancelled' },
+    paid:      { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Paid' },
+    unpaid:    { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',      label: 'Unpaid' },
+    failed:    { color: 'bg-red-500/20 text-red-400 border-red-500/30',            label: 'Failed' },
   };
   const c = cfg[status] || cfg.pending;
   return <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border', c.color)}>{c.label}</span>;
@@ -73,77 +51,113 @@ const StatusBadge: React.FC<{ status: Order['status'] | Order['paymentStatus'] }
 export const MerchantView: React.FC<MerchantViewProps> = ({
   orders: propOrders, outlets, merchantOutlet, onUpdateStatus, onSwitchView,
   menu = [], onSaveItem, onDeleteItem, onToggleAvailability, onSaveOutlet, onAssignOutlet,
+  allMerchantOutlets = [],
 }) => {
   const [tab, setTab] = useState<DashTab>('orders');
   const [alerts, setAlerts] = useState<PaymentAlertPayload[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [liveOrders, setLiveOrders] = useState<Order[]>(propOrders);
+  const [liveOrders, setLiveOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(false);
-  const [isOpen, setIsOpen] = useState(merchantOutlet?.isOpen ?? true);
   const [refreshing, setRefreshing] = useState(false);
+  const [outletMenus, setOutletMenus] = useState<Record<string, MenuItem[]>>({});
 
-  // Sync prop orders into live state
-  useEffect(() => { setLiveOrders(propOrders); }, [propOrders]);
+  const myOutlets = allMerchantOutlets.length > 0 ? allMerchantOutlets : (merchantOutlet ? [merchantOutlet] : []);
+  const [activeOutletId, setActiveOutletId] = useState<string>(merchantOutlet?.id || myOutlets[0]?.id || '');
+  const activeOutlet = myOutlets.find(o => o.id === activeOutletId) || myOutlets[0] || null;
+  const [isOpen, setIsOpen] = useState(activeOutlet?.isOpen ?? true);
 
-  // Fetch transactions for this outlet from DB
   useEffect(() => {
-    if (!merchantOutlet?.id) return;
-    setLoadingTx(true);
-    supabase.from('transactions').select('*')
-      .eq('outlet_id', merchantOutlet.id)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setTransactions(data.map(rowToTransaction));
-        setLoadingTx(false);
-      });
-    const ch = supabase.channel(`merchant_tx_${merchantOutlet.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `outlet_id=eq.${merchantOutlet.id}` }, () => {
-        supabase.from('transactions').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false })
-          .then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); });
-      }).subscribe();
-    return () => { supabase.removeChannel(ch); };
+    if (merchantOutlet?.id && !activeOutletId) setActiveOutletId(merchantOutlet.id);
   }, [merchantOutlet?.id]);
 
-  // Realtime orders subscription
   useEffect(() => {
-    if (!merchantOutlet?.id) return;
-    const fetchOrders = () => supabase.from('orders').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false })
-      .then(({ data }) => { if (data) setLiveOrders(data.map(rowToOrder)); });
+    if (activeOutlet) setIsOpen(activeOutlet.isOpen);
+  }, [activeOutlet?.id]);
+
+  // Only fetch PAID orders — unpaid = abandoned checkout, should NOT show to merchant
+  useEffect(() => {
+    if (!activeOutlet?.id) return;
+    const fetchOrders = () =>
+      supabase.from('orders').select('*')
+        .eq('outlet_id', activeOutlet.id)
+        .eq('payment_status', 'paid')
+        .order('created_at', { ascending: false })
+        .then(({ data }) => { if (data) setLiveOrders(data.map(rowToOrder)); });
     fetchOrders();
-    const ch = supabase.channel(`mv_orders_${merchantOutlet.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${merchantOutlet.id}` }, fetchOrders)
+    const ch = supabase.channel(`mv_orders_${activeOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${activeOutlet.id}` }, fetchOrders)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [merchantOutlet?.id]);
+  }, [activeOutlet?.id]);
+
+  useEffect(() => {
+    if (!activeOutlet?.id) return;
+    setLoadingTx(true);
+    const fetchTx = () =>
+      supabase.from('transactions').select('*')
+        .eq('outlet_id', activeOutlet.id).order('created_at', { ascending: false })
+        .then(({ data }) => { if (data) setTransactions(data.map(rowToTransaction)); setLoadingTx(false); });
+    fetchTx();
+    const ch = supabase.channel(`merchant_tx_${activeOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `outlet_id=eq.${activeOutlet.id}` }, fetchTx)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [activeOutlet?.id]);
+
+  useEffect(() => {
+    if (!activeOutlet?.id) return;
+    const fetchMenu = () =>
+      supabase.from('menu_items').select('*').eq('outlet_id', activeOutlet.id).order('name')
+        .then(({ data }) => {
+          if (data) setOutletMenus(prev => ({ ...prev, [activeOutlet.id]: data.map(r => ({
+            id: r.id, outletId: r.outlet_id, name: r.name, description: r.description || '',
+            price: Number(r.price), imageUrl: r.image_url || '', category: r.category,
+            isAvailable: r.is_available ?? true, prepTime: r.prep_time,
+          })) }));
+        });
+    fetchMenu();
+    const ch = supabase.channel(`mv_menu_${activeOutlet.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `outlet_id=eq.${activeOutlet.id}` }, fetchMenu)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [activeOutlet?.id]);
+
+  const activeMenu = outletMenus[activeOutlet?.id || ''] ?? menu;
 
   const handleAlert = useCallback((alert: PaymentAlertPayload) => {
     setAlerts(prev => [alert, ...prev].slice(0, 10));
     if (voiceEnabled) announcePayment(alert.amount, alert.type, alert.fromName);
   }, [voiceEnabled]);
 
-  useMerchantSocket({ outletId: merchantOutlet?.id || null, onAlert: handleAlert });
+  useMerchantSocket({ outletId: activeOutlet?.id || null, onAlert: handleAlert });
 
   const handleRefresh = async () => {
-    if (!merchantOutlet?.id) return;
+    if (!activeOutlet?.id) return;
     setRefreshing(true);
-    const [{ data: o }, { data: t }] = await Promise.all([
-      supabase.from('orders').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false }),
-      supabase.from('transactions').select('*').eq('outlet_id', merchantOutlet.id).order('created_at', { ascending: false }),
+    const [{ data: o }, { data: t }, { data: m }] = await Promise.all([
+      supabase.from('orders').select('*').eq('outlet_id', activeOutlet.id).eq('payment_status', 'paid').order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').eq('outlet_id', activeOutlet.id).order('created_at', { ascending: false }),
+      supabase.from('menu_items').select('*').eq('outlet_id', activeOutlet.id).order('name'),
     ]);
     if (o) setLiveOrders(o.map(rowToOrder));
     if (t) setTransactions(t.map(rowToTransaction));
+    if (m) setOutletMenus(prev => ({ ...prev, [activeOutlet.id]: m.map(r => ({
+      id: r.id, outletId: r.outlet_id, name: r.name, description: r.description || '',
+      price: Number(r.price), imageUrl: r.image_url || '', category: r.category,
+      isAvailable: r.is_available ?? true, prepTime: r.prep_time,
+    })) }));
     setRefreshing(false);
   };
 
   const toggleOutletOpen = async () => {
-    if (!merchantOutlet) return;
+    if (!activeOutlet) return;
     const next = !isOpen;
     setIsOpen(next);
-    await supabase.from('outlets').update({ is_open: next }).eq('id', merchantOutlet.id);
+    await supabase.from('outlets').update({ is_open: next }).eq('id', activeOutlet.id);
   };
 
-  if (!merchantOutlet) {
+  if (myOutlets.length === 0) {
     return <NoOutletSetup outlets={outlets} onSaveOutlet={onSaveOutlet} onAssignOutlet={onAssignOutlet} />;
   }
 
@@ -153,8 +167,8 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
   const activeOrders = liveOrders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled');
-  const todaySales = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + (o.vendorAmount || 0), 0);
-  const totalRevenue = liveOrders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + (o.vendorAmount || 0), 0);
+  const todaySales = todayOrders.reduce((s, o) => s + (o.vendorAmount || 0), 0);
+  const totalRevenue = liveOrders.reduce((s, o) => s + (o.vendorAmount || 0), 0);
   const avgOrder = liveOrders.length ? Math.round(totalRevenue / liveOrders.length) : 0;
 
   const TABS: { id: DashTab; label: string; icon: any; badge?: number }[] = [
@@ -167,14 +181,24 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Merchant Dashboard</p>
-          <h2 className="text-display text-3xl font-black leading-tight">{merchantOutlet.name}</h2>
-          <p className="text-white/30 text-xs mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3" />{merchantOutlet.blockName}</p>
+          {myOutlets.length > 1 ? (
+            <div className="relative inline-flex items-center gap-1">
+              <select value={activeOutletId}
+                onChange={e => { setActiveOutletId(e.target.value); setLiveOrders([]); setTransactions([]); }}
+                className="appearance-none bg-transparent text-2xl font-black text-white pr-6 outline-none cursor-pointer max-w-[200px] truncate">
+                {myOutlets.map(o => <option key={o.id} value={o.id} className="bg-gray-900 text-base font-normal">{o.name}</option>)}
+              </select>
+              <ChevronDown className="w-4 h-4 text-white/40 pointer-events-none flex-shrink-0" />
+            </div>
+          ) : (
+            <h2 className="text-display text-3xl font-black leading-tight truncate">{activeOutlet?.name}</h2>
+          )}
+          <p className="text-white/30 text-xs mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3" />{activeOutlet?.blockName}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <button onClick={handleRefresh} className={cn('w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all', refreshing && 'animate-spin')}>
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -191,13 +215,12 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         </div>
       </div>
 
-      {/* Quick stats */}
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Active', value: activeOrders.length, color: 'text-amber-400', icon: Clock },
           { label: 'Today', value: todayOrders.length, color: 'text-blue-400', icon: Package },
           { label: 'Sales', value: `₹${todaySales}`, color: 'text-emerald-400', icon: TrendingUp },
-          { label: 'Menu', value: `${menu.filter(m => m.isAvailable).length}/${menu.length}`, color: 'text-klu-red', icon: UtensilsCrossed },
+          { label: 'Menu', value: `${activeMenu.filter(m => m.isAvailable).length}/${activeMenu.length}`, color: 'text-klu-red', icon: UtensilsCrossed },
         ].map(s => (
           <GlassCard key={s.label} className="p-3 text-center">
             <s.icon className={cn('w-4 h-4 mx-auto mb-1', s.color)} />
@@ -207,7 +230,6 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         ))}
       </div>
 
-      {/* Live alerts */}
       <AnimatePresence>
         {alerts.length > 0 && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
@@ -236,7 +258,6 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Tab bar */}
       <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 gap-1">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -253,13 +274,12 @@ export const MerchantView: React.FC<MerchantViewProps> = ({
         ))}
       </div>
 
-      {/* Tab content */}
       <AnimatePresence mode="wait">
-        {tab === 'orders' && <OrdersTab key="orders" orders={liveOrders} onUpdateStatus={onUpdateStatus} />}
-        {tab === 'payments' && <PaymentsTab key="payments" transactions={transactions} loading={loadingTx} />}
+        {tab === 'orders'    && <OrdersTab    key="orders"    orders={liveOrders} onUpdateStatus={onUpdateStatus} />}
+        {tab === 'payments'  && <PaymentsTab  key="payments"  transactions={transactions} loading={loadingTx} />}
         {tab === 'analytics' && <AnalyticsTab key="analytics" orders={liveOrders} transactions={transactions} todaySales={todaySales} totalRevenue={totalRevenue} avgOrder={avgOrder} />}
-        {tab === 'menu' && <MenuTab key="menu" menu={menu} onSaveItem={onSaveItem} onDeleteItem={onDeleteItem} onToggleAvailability={onToggleAvailability} outletId={merchantOutlet.id} />}
-        {tab === 'outlet' && <OutletTab key="outlet" outlet={merchantOutlet} onSave={onSaveOutlet} />}
+        {tab === 'menu'      && <MenuTab      key={`menu-${activeOutlet?.id}`} menu={activeMenu} outletId={activeOutlet?.id || ''} onSaveItem={(item) => onSaveItem?.(item, activeOutlet?.id)} onDeleteItem={onDeleteItem} onToggleAvailability={onToggleAvailability} />}
+        {tab === 'outlet'    && <OutletTab    key="outlet" outlet={activeOutlet!} allOutlets={myOutlets} onSave={onSaveOutlet} onSwitchOutlet={setActiveOutletId} />}
       </AnimatePresence>
     </motion.div>
   );
@@ -284,7 +304,10 @@ const OrdersTab: React.FC<{ orders: Order[]; onUpdateStatus: (id: string, s: Ord
   return (
     <motion.div key="orders-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
       <div className="flex gap-2 p-1 bg-white/5 rounded-2xl border border-white/10">
-        {[{ k: 'active', l: `Active (${orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled').length})` }, { k: 'all', l: `All (${orders.length})` }].map(f => (
+        {[
+          { k: 'active', l: `Active (${orders.filter(o => o.status !== 'picked_up' && o.status !== 'cancelled').length})` },
+          { k: 'all',    l: `All (${orders.length})` },
+        ].map(f => (
           <button key={f.k} onClick={() => setFilter(f.k as any)}
             className={cn('flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all', filter === f.k ? 'clay-red' : 'text-white/30')}>
             {f.l}
@@ -317,13 +340,11 @@ const OrdersTab: React.FC<{ orders: Order[]; onUpdateStatus: (id: string, s: Ord
                 </div>
               </div>
             </button>
-
             <AnimatePresence>
               {isExp && (
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                   className="border-t border-white/5 overflow-hidden">
                   <div className="p-4 space-y-3">
-                    {/* Items */}
                     <div className="space-y-1">
                       {(order.items || []).map((item, i) => (
                         <div key={i} className="flex justify-between text-xs text-white/60">
@@ -336,7 +357,6 @@ const OrdersTab: React.FC<{ orders: Order[]; onUpdateStatus: (id: string, s: Ord
                     <p className="text-[10px] text-white/20">
                       {new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
-                    {/* Action buttons */}
                     <div className="flex gap-2">
                       {NEXT[order.status] && (
                         <ClayButton onClick={() => onUpdateStatus(order.id, NEXT[order.status]!)} className="flex-1 text-xs py-2">
@@ -365,9 +385,9 @@ const OrdersTab: React.FC<{ orders: Order[]; onUpdateStatus: (id: string, s: Ord
 const PaymentsTab: React.FC<{ transactions: Transaction[]; loading: boolean }> = ({ transactions, loading }) => {
   const paid = transactions.filter(t => t.paymentStatus === 'paid');
   const totalReceived = paid.reduce((s, t) => s + (t.vendorAmount || 0), 0);
+  const now = new Date();
   const todayPaid = paid.filter(t => {
     const d = new Date(t.createdAt);
-    const now = new Date();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
   const todayTotal = todayPaid.reduce((s, t) => s + (t.vendorAmount || 0), 0);
@@ -386,11 +406,8 @@ const PaymentsTab: React.FC<{ transactions: Transaction[]; loading: boolean }> =
           <p className="text-[10px] text-white/20 mt-1">{paid.length} payments</p>
         </GlassCard>
       </div>
-
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-white/30 animate-spin" />
-        </div>
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 text-white/30 animate-spin" /></div>
       ) : transactions.length === 0 ? (
         <div className="text-center py-16 glass-frosted rounded-3xl border border-white/10">
           <Wallet className="w-10 h-10 text-white/10 mx-auto mb-3" />
@@ -433,18 +450,18 @@ const AnalyticsTab: React.FC<{ orders: Order[]; transactions: Transaction[]; tod
   const completionRate = orders.length ? Math.round((completedCount / orders.length) * 100) : 0;
 
   const stats = [
-    { label: 'Total Revenue', value: `₹${totalRevenue.toFixed(0)}`, icon: IndianRupee, color: 'text-emerald-400' },
-    { label: "Today's Sales", value: `₹${todaySales.toFixed(0)}`, icon: TrendingUp, color: 'text-blue-400' },
-    { label: 'Avg Order', value: `₹${avgOrder}`, icon: BarChart2, color: 'text-amber-400' },
-    { label: 'Completion', value: `${completionRate}%`, icon: CheckCheck, color: 'text-klu-red' },
-    { label: 'Food Orders', value: foodOrders.length, icon: ShoppingBag, color: 'text-blue-400' },
-    { label: 'Direct Pays', value: directPays.length, icon: ScanLine, color: 'text-emerald-400' },
-    { label: 'Cancelled', value: cancelledCount, icon: XCircle, color: 'text-red-400' },
-    { label: 'Total Orders', value: orders.length, icon: Package, color: 'text-white/60' },
+    { label: 'Total Revenue',  value: `₹${totalRevenue.toFixed(0)}`, icon: IndianRupee, color: 'text-emerald-400' },
+    { label: "Today's Sales",  value: `₹${todaySales.toFixed(0)}`,   icon: TrendingUp,  color: 'text-blue-400' },
+    { label: 'Avg Order',      value: `₹${avgOrder}`,                icon: BarChart2,   color: 'text-amber-400' },
+    { label: 'Completion',     value: `${completionRate}%`,           icon: CheckCheck,  color: 'text-klu-red' },
+    { label: 'Food Orders',    value: foodOrders.length,              icon: ShoppingBag, color: 'text-blue-400' },
+    { label: 'Direct Pays',    value: directPays.length,              icon: ScanLine,    color: 'text-emerald-400' },
+    { label: 'Cancelled',      value: cancelledCount,                 icon: XCircle,     color: 'text-red-400' },
+    { label: 'Total Orders',   value: orders.length,                  icon: Package,     color: 'text-white/60' },
   ];
 
   return (
-    <motion.div key="analytics-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+    <motion.div key="analytics-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="grid grid-cols-2 gap-3">
         {stats.map(s => (
           <GlassCard key={s.label} className="p-4 flex items-center gap-3">
@@ -473,7 +490,7 @@ const MenuTab: React.FC<{
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!editing || !editing.name || !editing.price || !onSaveItem) return;
+    if (!editing?.name || !editing?.price || !onSaveItem) return;
     setSaving(true);
     await onSaveItem({ ...editing, name: editing.name!, price: editing.price!, category: editing.category || 'Main' });
     setSaving(false);
@@ -482,7 +499,8 @@ const MenuTab: React.FC<{
 
   return (
     <motion.div key="menu-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-      <ClayButton onClick={() => setEditing({ name: '', price: 0, category: 'Main', prepTime: '10m', description: '', isAvailable: true })} className="w-full flex items-center justify-center gap-2">
+      <ClayButton onClick={() => setEditing({ name: '', price: 0, category: 'Main', prepTime: '10m', description: '', isAvailable: true })}
+        className="w-full flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Item
       </ClayButton>
 
@@ -492,17 +510,23 @@ const MenuTab: React.FC<{
             className="glass-frosted rounded-3xl border border-white/10 p-5 space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-white/40">{editing.id ? 'Edit Item' : 'New Item'}</p>
             <input value={editing.name || ''} onChange={e => setEditing(p => ({ ...p!, name: e.target.value }))}
-              placeholder="Item name" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+              placeholder="Item name"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
             <div className="grid grid-cols-2 gap-3">
               <input type="number" value={editing.price || ''} onChange={e => setEditing(p => ({ ...p!, price: parseFloat(e.target.value) || 0 }))}
-                placeholder="Price ₹" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+                placeholder="Price ₹"
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
               <select value={editing.category || 'Main'} onChange={e => setEditing(p => ({ ...p!, category: e.target.value }))}
                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
                 {CATEGORIES.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
               </select>
             </div>
             <input value={editing.description || ''} onChange={e => setEditing(p => ({ ...p!, description: e.target.value }))}
-              placeholder="Description (optional)" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+              placeholder="Description (optional)"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+            <input value={editing.prepTime || ''} onChange={e => setEditing(p => ({ ...p!, prepTime: e.target.value }))}
+              placeholder="Prep time (e.g. 10m)"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
             <div className="flex gap-2">
               <ClayButton onClick={handleSave} disabled={saving} className="flex-1">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save'}
@@ -522,7 +546,8 @@ const MenuTab: React.FC<{
         <div key={item.id} className="glass-frosted rounded-2xl border border-white/10 p-4 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className={cn('font-black text-sm', !item.isAvailable && 'text-white/30 line-through')}>{item.name}</p>
-            <p className="text-white/40 text-xs">₹{item.price} · {item.category}</p>
+            <p className="text-white/40 text-xs">₹{item.price} · {item.category}{item.prepTime ? ` · ${item.prepTime}` : ''}</p>
+            {item.description && <p className="text-white/20 text-[10px] mt-0.5 truncate">{item.description}</p>}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => onToggleAvailability?.(item.id, !item.isAvailable)}
@@ -543,10 +568,27 @@ const MenuTab: React.FC<{
   );
 };
 
-// ── OutletTab ─────────────────────────────────────────────────────────────────
-const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { name: string }) => Promise<void> }> = ({ outlet, onSave }) => {
-  const [form, setForm] = useState({ name: outlet.name, description: outlet.description, blockName: outlet.blockName, category: outlet.category, upiId: outlet.upiId, timings: outlet.timings || '', imageUrl: outlet.imageUrl });
+// ── OutletTab — manage current outlet + add new outlets ───────────────────────
+const OutletTab: React.FC<{
+  outlet: Outlet;
+  allOutlets: Outlet[];
+  onSave?: (data: Partial<Outlet> & { name: string }) => Promise<void>;
+  onSwitchOutlet: (id: string) => void;
+}> = ({ outlet, allOutlets, onSave, onSwitchOutlet }) => {
+  const [form, setForm] = useState({
+    name: outlet.name, description: outlet.description, blockName: outlet.blockName,
+    category: outlet.category, upiId: outlet.upiId, timings: outlet.timings || '', imageUrl: outlet.imageUrl,
+  });
   const [saving, setSaving] = useState(false);
+  const [addingNew, setAddingNew] = useState(false);
+  const [newForm, setNewForm] = useState({ name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', timings: '8am – 9pm', imageUrl: '' });
+  const [savingNew, setSavingNew] = useState(false);
+
+  // Sync form when outlet changes
+  useEffect(() => {
+    setForm({ name: outlet.name, description: outlet.description, blockName: outlet.blockName,
+      category: outlet.category, upiId: outlet.upiId, timings: outlet.timings || '', imageUrl: outlet.imageUrl });
+  }, [outlet.id]);
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -555,36 +597,62 @@ const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { 
     setSaving(false);
   };
 
+  const handleAddNew = async () => {
+    if (!newForm.name || !onSave) return;
+    setSavingNew(true);
+    await onSave(newForm);
+    setSavingNew(false);
+    setAddingNew(false);
+    setNewForm({ name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', timings: '8am – 9pm', imageUrl: '' });
+  };
+
+  const FIELD_INPUT = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50';
+
   return (
-    <motion.div key="outlet-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+    <motion.div key="outlet-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
+      {/* All outlets list */}
+      {allOutlets.length > 1 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Your Outlets</p>
+          {allOutlets.map(o => (
+            <button key={o.id} onClick={() => onSwitchOutlet(o.id)}
+              className={cn('w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left',
+                o.id === outlet.id ? 'bg-klu-red/10 border-klu-red/30' : 'bg-white/5 border-white/10 hover:border-white/20')}>
+              <Store className={cn('w-4 h-4 flex-shrink-0', o.id === outlet.id ? 'text-klu-red' : 'text-white/30')} />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm truncate">{o.name}</p>
+                <p className="text-white/30 text-xs">{o.blockName}</p>
+              </div>
+              <div className={cn('w-2 h-2 rounded-full flex-shrink-0', o.isOpen ? 'bg-emerald-400' : 'bg-red-400')} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Edit current outlet */}
       <GlassCard className="p-5 space-y-4">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Outlet Details</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Edit: {outlet.name}</p>
         {[
-          { label: 'Name', key: 'name', placeholder: 'Outlet name' },
+          { label: 'Name',        key: 'name',        placeholder: 'Outlet name' },
           { label: 'Description', key: 'description', placeholder: 'Short description' },
-          { label: 'UPI ID', key: 'upiId', placeholder: 'merchant@upi' },
-          { label: 'Timings', key: 'timings', placeholder: '8am – 9pm' },
-          { label: 'Image URL', key: 'imageUrl', placeholder: 'https://...' },
+          { label: 'UPI ID',      key: 'upiId',       placeholder: 'merchant@upi' },
+          { label: 'Timings',     key: 'timings',     placeholder: '8am – 9pm' },
+          { label: 'Image URL',   key: 'imageUrl',    placeholder: 'https://...' },
         ].map(f => (
           <div key={f.key}>
             <p className="text-[10px] font-black uppercase text-white/30 mb-1">{f.label}</p>
             <input value={(form as any)[f.key] || ''} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-              placeholder={f.placeholder}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+              placeholder={f.placeholder} className={FIELD_INPUT} />
           </div>
         ))}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase text-white/30 mb-1">Block</p>
-            <select value={form.blockName} onChange={e => setForm(p => ({ ...p, blockName: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
-              {BLOCKS.map(b => <option key={b} value={b} className="bg-gray-900">{b}</option>)}
-            </select>
+            <BlockPicker value={form.blockName} onChange={b => setForm(p => ({ ...p, blockName: b }))} compact label="Block" />
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-white/30 mb-1">Category</p>
             <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-klu-red/50">
+              className={FIELD_INPUT}>
               {OUTLET_CATS.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
             </select>
           </div>
@@ -593,6 +661,51 @@ const OutletTab: React.FC<{ outlet: Outlet; onSave?: (data: Partial<Outlet> & { 
           {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save Changes'}
         </ClayButton>
       </GlassCard>
+
+      {/* Add new outlet */}
+      <div>
+        <button onClick={() => setAddingNew(v => !v)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-white/20 text-white/40 hover:text-white hover:border-white/40 transition-all text-sm font-black">
+          <Plus className="w-4 h-4" /> Add Another Outlet
+        </button>
+        <AnimatePresence>
+          {addingNew && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="mt-4 glass-frosted rounded-3xl border border-white/10 p-5 space-y-3">
+              <p className="text-xs font-black uppercase tracking-widest text-white/40">New Outlet</p>
+              {[
+                { label: 'Name',        key: 'name',        placeholder: "Canteen name" },
+                { label: 'UPI ID',      key: 'upiId',       placeholder: 'merchant@upi' },
+                { label: 'Description', key: 'description', placeholder: 'Short description' },
+                { label: 'Timings',     key: 'timings',     placeholder: '8am – 9pm' },
+              ].map(f => (
+                <div key={f.key}>
+                  <p className="text-[10px] font-black uppercase text-white/30 mb-1">{f.label}</p>
+                  <input value={(newForm as any)[f.key]} onChange={e => setNewForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder} className={FIELD_INPUT} />
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <BlockPicker value={newForm.blockName} onChange={b => setNewForm(p => ({ ...p, blockName: b }))} compact label="Block" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase text-white/30 mb-1">Category</p>
+                  <select value={newForm.category} onChange={e => setNewForm(p => ({ ...p, category: e.target.value }))} className={FIELD_INPUT}>
+                    {OUTLET_CATS.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <ClayButton onClick={handleAddNew} disabled={savingNew || !newForm.name} className="flex-1">
+                  {savingNew ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create Outlet'}
+                </ClayButton>
+                <button onClick={() => setAddingNew(false)} className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/40 font-black text-sm">Cancel</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 };
@@ -604,7 +717,7 @@ const NoOutletSetup: React.FC<{
   onAssignOutlet?: (id: string) => Promise<void>;
 }> = ({ outlets, onSaveOutlet, onAssignOutlet }) => {
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_OUTLET_FORM });
+  const [form, setForm] = useState({ name: '', description: '', blockName: 'Tulip Hostel', category: 'Meals', upiId: '', timings: '8am – 9pm', imageUrl: '' });
   const [saving, setSaving] = useState(false);
 
   const handleCreate = async () => {
@@ -613,6 +726,8 @@ const NoOutletSetup: React.FC<{
     await onSaveOutlet(form);
     setSaving(false);
   };
+
+  const FIELD_INPUT = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50';
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -647,18 +762,17 @@ const NoOutletSetup: React.FC<{
           {creating && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-4 space-y-3">
               {[
-                { key: 'name', label: 'Outlet Name', placeholder: "Friend's Canteen" },
-                { key: 'upiId', label: 'UPI ID', placeholder: 'merchant@upi' },
+                { key: 'name',        label: 'Outlet Name', placeholder: "Friend's Canteen" },
+                { key: 'upiId',       label: 'UPI ID',      placeholder: 'merchant@upi' },
                 { key: 'description', label: 'Description', placeholder: 'Short description' },
               ].map(f => (
                 <div key={f.key}>
                   <p className="text-[10px] font-black uppercase text-white/30 mb-1">{f.label}</p>
                   <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    placeholder={f.placeholder}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-white/20 outline-none focus:border-klu-red/50" />
+                    placeholder={f.placeholder} className={FIELD_INPUT} />
                 </div>
               ))}
-              <ClayButton onClick={handleCreate} disabled={saving} className="w-full">
+              <ClayButton onClick={handleCreate} disabled={saving || !form.name} className="w-full">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create Outlet'}
               </ClayButton>
             </motion.div>

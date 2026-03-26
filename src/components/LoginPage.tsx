@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import {
   registerUser, loginUser, getAuthErrorMessage,
-  ProfileExtras,
+  ProfileExtras, saveUserProfile,
 } from '../auth';
+import { supabase } from '../supabase';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
 import { cn } from '../utils';
@@ -77,6 +78,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   const [devLoading, setDevLoading] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
+  // Legal modal
+  const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | null>(null);
+
   const startCooldown = useCallback((seconds: number) => {
     setLoginCooldown(seconds);
     if (cooldownRef.current) clearInterval(cooldownRef.current);
@@ -93,31 +97,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
     setLoginError('');
     if (!loginEmail || !loginPassword) { setLoginError('Enter your email and password.'); return; }
     setLoginLoading(true);
+    // Hard 8s timeout on the entire login flow — prevents infinite spinner
+    const loginTimeout = setTimeout(() => {
+      setLoginLoading(false);
+      setLoginError('Login timed out. Check your connection and try again.');
+    }, 8000);
     try {
-      // Sign in with Supabase auth — this is the critical part
-      const { data, error } = await (await import('../supabase')).supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim().toLowerCase(),
         password: loginPassword,
       });
       if (error) throw error;
-      // Profile save is best-effort — don't block login on it
       const uid = data.user.id;
       const email = data.user.email || loginEmail;
+      // Save profile with a 4s timeout — don't block login if DB is slow
       try {
         const profile = await Promise.race([
-          loginUser(email, loginPassword),
+          saveUserProfile(uid, email, '', {}),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
         ]);
+        clearTimeout(loginTimeout);
         await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
-      } catch (profileErr: any) {
-        if (profileErr?.message === 'timeout') {
-          // Profile save timed out — still log the user in with basic info
-          await onMagicLinkComplete(uid, email, '');
-        } else {
-          throw profileErr;
-        }
+      } catch {
+        // Profile save timed out or failed — still log in with basic info
+        clearTimeout(loginTimeout);
+        await onMagicLinkComplete(uid, email, '');
       }
     } catch (err: any) {
+      clearTimeout(loginTimeout);
       const msg = getAuthErrorMessage(err);
       setLoginError(msg);
       if (msg.includes('Too many attempts')) startCooldown(30);
@@ -144,8 +151,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
         gender: regGender,
         hostel: regHostel,
       };
-      await registerUser(regEmail.trim(), regPassword, regPhone, extras);
-      setStep('confirmed');
+      const profile = await registerUser(regEmail.trim(), regPassword, regPhone, extras);
+      if (profile) {
+        // Email confirmation disabled — session is live, log in immediately
+        await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
+      } else {
+        // Email confirmation required — show "check inbox" screen
+        setStep('confirmed');
+      }
     } catch (err: any) {
       setRegError(getAuthErrorMessage(err));
     } finally {
@@ -360,11 +373,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                   <span className="text-[10px] font-black uppercase tracking-widest">Dev</span>
                 </button>
               </div>
+
+              {/* T&C + Privacy Policy */}
+              <p className="text-center text-[10px] text-white/20 leading-relaxed">
+                By continuing, you agree to our{' '}
+                <button onClick={() => setShowLegal('terms')} className="text-white/40 underline hover:text-white transition-colors">Terms & Conditions</button>
+                {' '}and{' '}
+                <button onClick={() => setShowLegal('privacy')} className="text-white/40 underline hover:text-white transition-colors">Privacy Policy</button>
+              </p>
             </motion.div>
           )}
 
         </AnimatePresence>
       </motion.div>
+
+      {/* Legal Modal */}
+      <AnimatePresence>
+        {showLegal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={() => setShowLegal(null)}>
+            <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-sm glass-frosted rounded-[32px] border border-white/10 p-6 shadow-2xl max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-black text-lg">{showLegal === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h3>
+                <button onClick={() => setShowLegal(null)} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/30 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {showLegal === 'terms' ? (
+                <div className="space-y-3 text-xs text-white/50 leading-relaxed">
+                  <p className="text-white/70 font-bold">Last updated: March 2026</p>
+                  <p>By using KL ONE, you agree to these terms. KL ONE is a campus food ordering and payment platform for KL University students and merchants.</p>
+                  <p className="font-bold text-white/70">Payments</p>
+                  <p>All payments are processed via Cashfree. A platform fee of ₹2.50 applies per transaction. Payments are non-refundable once processed unless the order is cancelled by the merchant.</p>
+                  <p className="font-bold text-white/70">K-Coins</p>
+                  <p>K-Coins are reward points with no monetary value. They cannot be transferred or redeemed for cash.</p>
+                  <p className="font-bold text-white/70">Prohibited Use</p>
+                  <p>You may not use KL ONE for fraudulent transactions or any activity that violates KL University's code of conduct.</p>
+                  <p className="font-bold text-white/70">Liability</p>
+                  <p>KL ONE is not liable for delays in food preparation, payment gateway failures, or indirect damages.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 text-xs text-white/50 leading-relaxed">
+                  <p className="text-white/70 font-bold">Last updated: March 2026</p>
+                  <p>KL ONE collects your name, email, phone, university ID, hostel, and transaction data to operate the platform.</p>
+                  <p className="font-bold text-white/70">How We Use It</p>
+                  <p>Your data is used to process orders, award K-Coins, and provide support. We do not sell your data.</p>
+                  <p className="font-bold text-white/70">Payments</p>
+                  <p>Payment processing is by Cashfree. We store transaction IDs but never your card or UPI credentials.</p>
+                  <p className="font-bold text-white/70">Your Rights</p>
+                  <p>Request account deletion via the Support section in the app.</p>
+                </div>
+              )}
+              <button onClick={() => setShowLegal(null)} className="mt-5 w-full py-3 bg-klu-red rounded-2xl text-white font-black text-sm">Got it</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Dev Login Modal */}
       <AnimatePresence>

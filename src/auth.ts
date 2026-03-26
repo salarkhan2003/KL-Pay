@@ -18,7 +18,7 @@ export interface ProfileExtras {
 }
 
 // ── Register ──────────────────────────────────────────────────────────────────
-export async function registerUser(email: string, password: string, phone: string, extras: ProfileExtras = {}): Promise<void> {
+export async function registerUser(email: string, password: string, phone: string, extras: ProfileExtras = {}): Promise<UserProfile | null> {
   if (!email.includes('@')) throw new Error('Please enter a valid email address.');
   if (password.length < 6) throw new Error('Password must be at least 6 characters.');
   if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) throw new Error('Please enter a valid 10-digit mobile number.');
@@ -32,9 +32,14 @@ export async function registerUser(email: string, password: string, phone: strin
     },
   });
   if (error) throw error;
+
   if (data.user) {
-    await saveUserProfile(data.user.id, email, phone, extras);
+    const profile = await saveUserProfile(data.user.id, email, phone, extras);
+    // If email confirmation is disabled, session is immediately available — return profile so caller can log in right away
+    if (data.session) return profile;
   }
+  // Email confirmation required — return null so caller shows "check inbox" screen
+  return null;
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────────

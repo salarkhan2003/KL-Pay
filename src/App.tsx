@@ -28,6 +28,46 @@ import { DirectPayView } from './views/DirectPayView';
 import { TransactionHistoryView } from './views/TransactionHistoryView';
 import { PLATFORM_FEE } from './paymentEngine';
 
+// Simple inline legal view
+const LegalView: React.FC<{ type: 'terms' | 'privacy'; onBack: () => void }> = ({ type, onBack }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5">
+    <div className="flex items-center gap-3">
+      <button onClick={onBack} className="w-10 h-10 rounded-2xl glass-frosted flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <h2 className="text-display text-3xl font-black">{type === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h2>
+    </div>
+    <div className="glass-frosted rounded-3xl border border-white/10 p-6 space-y-4 text-sm text-white/50 leading-relaxed">
+      <p className="text-white/70 font-bold text-xs uppercase tracking-widest">Last updated: March 2026</p>
+      {type === 'terms' ? (
+        <>
+          <p>By using KL ONE, you agree to these terms. KL ONE is a campus food ordering and payment platform for KL University students and merchants.</p>
+          <p className="font-bold text-white/70">Payments</p>
+          <p>All payments are processed via Cashfree. A platform fee of ₹2.50 applies per transaction. Payments are non-refundable once processed unless the order is cancelled by the merchant.</p>
+          <p className="font-bold text-white/70">K-Coins</p>
+          <p>K-Coins are reward points with no monetary value. They cannot be transferred or redeemed for cash.</p>
+          <p className="font-bold text-white/70">Prohibited Use</p>
+          <p>You may not use KL ONE for fraudulent transactions or any activity that violates KL University's code of conduct.</p>
+          <p className="font-bold text-white/70">Limitation of Liability</p>
+          <p>KL ONE is not liable for delays in food preparation, payment gateway failures, or indirect damages arising from use of the platform.</p>
+        </>
+      ) : (
+        <>
+          <p>KL ONE collects your name, email, phone number, university ID, hostel, and transaction data to operate the platform.</p>
+          <p className="font-bold text-white/70">How We Use Your Data</p>
+          <p>Your data is used to process orders, award K-Coins, and provide support. We do not sell your data to third parties.</p>
+          <p className="font-bold text-white/70">Payment Data</p>
+          <p>Payment processing is handled by Cashfree. We store transaction IDs and amounts but never your card or UPI credentials.</p>
+          <p className="font-bold text-white/70">Data Storage</p>
+          <p>Your data is stored securely on Supabase servers with industry-standard encryption.</p>
+          <p className="font-bold text-white/70">Your Rights</p>
+          <p>You may request deletion of your account and associated data by contacting support through the app.</p>
+        </>
+      )}
+    </div>
+  </motion.div>
+);
+
 // alias for use in payment confirmation
 const awardKCoins = awardKCoinsSupabase;
 
@@ -813,13 +853,14 @@ export default function App() {
               {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
               {view === 'orders' && <OrdersView orders={orders} outlets={outlets} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
               {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
-              {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} onAssignOutlet={assignOutlet} />}
+              {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} onAssignOutlet={assignOutlet} allMerchantOutlets={outlets.filter(o => o.merchantId === profile?.uid || (profile?.merchantOutletId && o.id === profile.merchantOutletId))} />}
               {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onBack={() => setView('merchant')} />}
-              {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} onBack={() => setView('profile')} />}
+              {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} onBack={() => setView('profile')} userEmail={profile?.email} userName={profile?.displayName} />}
               {view === 'kcoins' && <KCoinsView profile={profile} onBack={() => setView('profile')} />}
               {view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} user={null} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} onBack={() => setView('home')} />}
               {view === 'transactions' && <TransactionHistoryView transactions={transactions} onBack={() => setView('profile')} />}
               {view === 'admin' && <AdminView allOrders={allOrders} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
+              {(view === 'terms' || view === 'privacy') && <LegalView type={view as 'terms' | 'privacy'} onBack={() => setView('profile')} />}
             </AnimatePresence>
           </main>
         </div>
