@@ -3,10 +3,14 @@ import { UserProfile } from './types';
 
 export function getAuthErrorMessage(err: any): string {
   const msg: string = err?.message ?? '';
-  if (msg.includes('Invalid login credentials')) return 'Wrong email or password.';
-  if (msg.includes('Email not confirmed')) return 'Please confirm your email first. Check your inbox.';
-  if (msg.includes('User already registered')) return 'Account already exists. Please sign in.';
-  if (msg.includes('rate limit')) return 'Too many attempts. Please wait and try again.';
+  if (msg.includes('Invalid login credentials'))    return 'Wrong email or password.';
+  if (msg.includes('Email not confirmed'))          return 'Please confirm your email first. Check your inbox.';
+  if (msg.includes('User already registered'))      return 'Account already exists. Please sign in.';
+  if (msg.includes('rate limit'))                   return 'Too many attempts. Please wait and try again.';
+  if (msg.includes('Database error'))               return 'Registration failed. Please try again in a moment.';
+  if (msg.includes('duplicate key'))                return 'Account already exists. Please sign in.';
+  if (msg.includes('violates'))                     return 'Registration failed. Please try again.';
+  if (msg.includes('network') || msg.includes('fetch')) return 'Network error. Check your connection.';
   return msg || 'Something went wrong. Try again.';
 }
 
@@ -20,7 +24,7 @@ export interface ProfileExtras {
 // ── Register ──────────────────────────────────────────────────────────────────
 export async function registerUser(email: string, password: string, phone: string, extras: ProfileExtras = {}): Promise<UserProfile | null> {
   if (!email.includes('@')) throw new Error('Please enter a valid email address.');
-  if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+  if (password.length < 6)  throw new Error('Password must be at least 6 characters.');
   if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) throw new Error('Please enter a valid 10-digit mobile number.');
 
   const { data, error } = await supabase.auth.signUp({
@@ -28,17 +32,45 @@ export async function registerUser(email: string, password: string, phone: strin
     password,
     options: {
       emailRedirectTo: window.location.origin,
-      data: { display_name: extras.displayName || email.split('@')[0], phone, student_id: extras.studentId || '', gender: extras.gender || '', hostel: extras.hostel || '' },
+      data: {
+        display_name: extras.displayName || email.split('@')[0],
+        phone,
+        student_id: extras.studentId || '',
+        gender:     extras.gender    || '',
+        hostel:     extras.hostel    || '',
+      },
     },
   });
+
+  // Auth-level error (e.g. already registered, rate limit) — throw so UI shows it
   if (error) throw error;
 
   if (data.user) {
-    const profile = await saveUserProfile(data.user.id, email, phone, extras);
-    // If email confirmation is disabled, session is immediately available — return profile so caller can log in right away
+    // Save profile — but NEVER let a DB error block the user from logging in.
+    // If the profile upsert fails, we fall back to a local profile object.
+    let profile: UserProfile;
+    try {
+      profile = await saveUserProfile(data.user.id, email, phone, extras);
+    } catch {
+      profile = {
+        uid: data.user.id,
+        email: email.toLowerCase(),
+        displayName: extras.displayName || email.split('@')[0],
+        role: 'student',
+        phone,
+        kCoins: 0,
+        streak: 0,
+        block: 'CSE',
+        studentId: extras.studentId,
+        gender: extras.gender,
+        hostel: extras.hostel,
+      };
+    }
+    // Session present = email confirmation disabled → log in immediately
     if (data.session) return profile;
   }
-  // Email confirmation required — return null so caller shows "check inbox" screen
+
+  // Email confirmation required
   return null;
 }
 

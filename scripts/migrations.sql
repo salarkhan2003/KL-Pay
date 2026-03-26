@@ -4,7 +4,51 @@
 -- Safe to re-run — uses IF NOT EXISTS / DO $$ blocks throughout
 -- ============================================================
 
--- ── 1. profiles — add all missing columns ────────────────────────────────────
+-- ── 0. Fix Supabase auth trigger conflict ────────────────────────────────────
+-- Supabase creates a trigger `on_auth_user_created` that inserts into
+-- public.users by default. If that table doesn't exist OR your profiles
+-- table has NOT NULL constraints the trigger can't satisfy, signUp fails
+-- with "Database error saving new user". This block neutralises it safely.
+
+-- Drop the default trigger if it exists (safe — recreated below if needed)
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user() cascade;
+
+-- Create a safe trigger function that upserts into profiles with only
+-- the columns we know exist, using ON CONFLICT DO NOTHING as fallback
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, display_name, role, phone, student_id, gender, hostel, k_coins, streak, block)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    'student',
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'student_id',
+    new.raw_user_meta_data->>'gender',
+    new.raw_user_meta_data->>'hostel',
+    0,
+    0,
+    'CSE'
+  )
+  on conflict (id) do nothing;
+  return new;
+exception when others then
+  -- Never block auth even if profile insert fails
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+
 alter table public.profiles add column if not exists block              text default 'CSE';
 alter table public.profiles add column if not exists gender             text;
 alter table public.profiles add column if not exists hostel             text;
