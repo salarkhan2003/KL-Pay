@@ -5,7 +5,7 @@ import {
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
   CheckCircle2, User, Hash, Lock, Building2,
 } from 'lucide-react';
-import { registerUser, getAuthErrorMessage, ProfileExtras } from '../auth';
+import { getAuthErrorMessage } from '../auth';
 import { supabase } from '../supabase';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
@@ -71,7 +71,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Legal modal
   const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | null>(null);
 
-  // ── Login — fast, no retries, no DB calls ─────────────────────────────────
+  // ── Login — raw fetch directly to Supabase Auth REST, guaranteed to resolve ──
   const handleLogin = async () => {
     setLoginError('');
     if (!loginEmail.trim() || !loginPassword) {
@@ -80,23 +80,63 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
     setLoginLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email:    loginEmail.trim().toLowerCase(),
-        password: loginPassword,
-      });
-      if (error) throw error;
-      // Auth succeeded — hand off immediately, no DB calls here
-      const uid   = data.user.id;
-      const email = data.user.email || loginEmail.trim().toLowerCase();
+      const SUPABASE_URL     = 'https://hnezkwnefmjvbdwlyubj.supabase.co';
+      const SUPABASE_ANON_KEY = 'sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi';
+
+      // Race the auth call against a 20s hard timeout
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 20000);
+
+      let res: Response;
+      try {
+        res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            email:    loginEmail.trim().toLowerCase(),
+            password: loginPassword,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        // Map Supabase error codes to friendly messages
+        const errMsg: string = json?.error_description || json?.msg || json?.message || 'Login failed.';
+        throw new Error(errMsg);
+      }
+
+      // Success — set the session in the Supabase client so the rest of the app works
+      const { access_token, refresh_token } = json;
+      await supabase.auth.setSession({ access_token, refresh_token });
+
+      const uid   = json.user?.id   || '';
+      const email = json.user?.email || loginEmail.trim().toLowerCase();
+
+      // Navigate immediately — profile enrichment happens in background
       await onMagicLinkComplete(uid, email, '');
+
     } catch (err: any) {
-      setLoginError(getAuthErrorMessage(err));
+      const m = (err?.message ?? '').toLowerCase();
+      if (m.includes('aborted') || m.includes('abort')) {
+        setLoginError('Request timed out. Please try again.');
+      } else {
+        setLoginError(getAuthErrorMessage(err));
+      }
     } finally {
       setLoginLoading(false);
     }
   };
 
-  // ── Register ────────────────────────────────────────────────────────────────
+  // ── Register — raw fetch, guaranteed to resolve ────────────────────────────
   const handleRegister = async () => {
     setRegError('');
     if (!regName.trim())        { setRegError('Enter your full name.'); return; }
@@ -109,20 +149,62 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     setRegLoading(true);
     try {
-      const extras: ProfileExtras = {
-        displayName: regName.trim(),
-        studentId:   regUnivId.trim(),
-        gender:      regGender,
-        hostel:      regHostel,
-      };
-      const profile = await registerUser(regEmail.trim(), regPassword, regPhone, extras);
-      if (profile) {
-        await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
+      const SUPABASE_URL      = 'https://hnezkwnefmjvbdwlyubj.supabase.co';
+      const SUPABASE_ANON_KEY = 'sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi';
+
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 20000);
+
+      let res: Response;
+      try {
+        res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            email:    regEmail.trim().toLowerCase(),
+            password: regPassword,
+            data: {
+              display_name: regName.trim(),
+              phone:        regPhone,
+              student_id:   regUnivId.trim(),
+              gender:       regGender,
+              hostel:       regHostel,
+            },
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        const errMsg: string = json?.error_description || json?.msg || json?.message || 'Registration failed.';
+        throw new Error(errMsg);
+      }
+
+      // If session present — email confirmation disabled, log in immediately
+      if (json.access_token) {
+        await supabase.auth.setSession({ access_token: json.access_token, refresh_token: json.refresh_token });
+        const uid   = json.user?.id    || '';
+        const email = json.user?.email || regEmail.trim().toLowerCase();
+        await onMagicLinkComplete(uid, email, regPhone);
       } else {
+        // Email confirmation required
         setStep('confirmed');
       }
     } catch (err: any) {
-      setRegError(getAuthErrorMessage(err));
+      const m = (err?.message ?? '').toLowerCase();
+      if (m.includes('aborted') || m.includes('abort')) {
+        setRegError('Request timed out. Please try again.');
+      } else {
+        setRegError(getAuthErrorMessage(err));
+      }
     } finally {
       setRegLoading(false);
     }
