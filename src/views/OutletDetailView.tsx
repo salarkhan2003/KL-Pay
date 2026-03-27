@@ -32,14 +32,14 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="space-y-8 pb-32"
+      className="space-y-8 pb-32 lg:max-w-3xl"
     >
-      <div className="relative h-64 -mx-6 -mt-24 overflow-hidden">
+      <div className="relative h-64 -mx-6 lg:mx-0 lg:rounded-3xl -mt-10 lg:mt-0 overflow-hidden">
         <img src={outlet.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer"
           onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1567529684892-09290a1b2d05?auto=format&fit=crop&w=400'; }} />
         <div className="absolute inset-0 bg-gradient-to-t from-crimson-dark via-crimson-dark/20 to-transparent" />
         <button onClick={onBack}
-          className="absolute top-12 left-6 w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white">
+          className="absolute top-4 left-4 lg:top-4 lg:left-4 w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white">
           <ArrowLeft className="w-6 h-6" />
         </button>
       </div>
@@ -79,7 +79,7 @@ export const OutletDetailView: React.FC<OutletDetailViewProps> = ({
             <p className="text-white/30 font-bold text-sm">No items available right now</p>
           </div>
         ) : !isClosed && (
-          <div className="grid gap-4">
+          <div className="grid gap-4 lg:grid-cols-2">
             {availableItems.map((item, idx) => {
               const inCart = cart.find(c => c.id === item.id);
               return (

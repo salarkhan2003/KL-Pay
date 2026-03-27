@@ -76,8 +76,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       )}
 
-      {/* Outlet grid — 1 col mobile, 2 col lg+ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* Outlet grid — 1 col mobile, 2 col md, 3 col xl */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visibleOutlets.length === 0 ? (
           <div className="col-span-full text-center py-12 glass-frosted rounded-3xl border border-white/10">
             <p className="text-white/40 font-medium">No canteens found</p>

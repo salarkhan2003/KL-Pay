@@ -954,7 +954,7 @@ export default function App() {
             'flex-1 p-6 pb-28 lg:pb-10 w-full mx-auto',
             (profile?.role === 'admin' || profile?.role === 'merchant' || view === 'admin' || view === 'merchant' || view === 'merchant_menu')
               ? 'lg:p-8 max-w-none'
-              : 'lg:p-10 max-w-3xl'
+              : 'lg:p-10 lg:max-w-5xl xl:max-w-6xl max-w-none'
           )}>
             <AnimatePresence mode="wait">
               {/* ── Admin: only admin panel, transactions tab, profile, support ── */}

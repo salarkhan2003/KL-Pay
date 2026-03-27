@@ -43,6 +43,7 @@ export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRe
         </div>
       ) : (
         <>
+          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-8 lg:items-start space-y-8 lg:space-y-0">
           <div className="space-y-4">
             {cart.map(item => (
               <div key={item.id} className="flex gap-4 items-center glass-frosted rounded-[24px] p-4 border border-white/10">
@@ -97,6 +98,7 @@ export const CartView: React.FC<CartViewProps> = ({ cart, onUpdateQuantity, onRe
             </div>
             <ClayButton onClick={onCheckout} className="w-full">Place Order</ClayButton>
           </GlassCard>
+          </div>
         </>
       )}
     </motion.div>

@@ -65,7 +65,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const RoleIcon = roleConfig.icon;
 
   return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5 lg:max-w-2xl">
 
       {/* Avatar + Name */}
       <div className="flex items-center gap-5">

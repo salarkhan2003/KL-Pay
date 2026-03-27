@@ -199,7 +199,7 @@ export const TransactionHistoryView: React.FC<TransactionHistoryViewProps> = ({ 
         </div>
 
         {/* List */}
-        <div className="space-y-3">
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
           {filtered.length === 0 ? (
             <div className="text-center py-16 glass-frosted rounded-[32px] border border-white/10">
               <ArrowUpRight className="w-10 h-10 text-white/10 mx-auto mb-3" />

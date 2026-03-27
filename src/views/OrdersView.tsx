@@ -57,7 +57,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, outlets, onReord
         ))}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         {shown.length === 0 ? (
           <div className="text-center py-16 glass-frosted rounded-3xl border border-white/10">
             <ShoppingBag className="w-10 h-10 text-white/10 mx-auto mb-3" />
