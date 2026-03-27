@@ -15,10 +15,14 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // React app builds to app.html so index.html can be the landing page
+    // Two entry points: landing page (index.html) + React app (app.html)
     build: {
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
-        input: path.resolve(__dirname, 'app.html'),
+        input: {
+          index: path.resolve(__dirname, 'index.html'),
+          app: path.resolve(__dirname, 'app.html'),
+        },
       },
     },
     server: {

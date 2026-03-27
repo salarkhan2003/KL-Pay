@@ -9,14 +9,15 @@
     }
   },
   "routes": [
-    { "src": "/api/health",                   "dest": "/api/health" },
-    { "src": "/api/payments/create-session",  "dest": "/api/payments/create-session" },
-    { "src": "/api/payments/direct-pay",      "dest": "/api/payments/direct-pay" },
-    { "src": "/api/payments/webhook",         "dest": "/api/payments/webhook" },
-    { "src": "/api/webhooks/welcome",         "dest": "/api/webhooks/welcome" },
-    { "src": "/api/webhooks/order",           "dest": "/api/webhooks/order" },
+    { "src": "/api/health",                  "dest": "/api/health" },
+    { "src": "/api/payments/create-session", "dest": "/api/payments/create-session" },
+    { "src": "/api/payments/direct-pay",     "dest": "/api/payments/direct-pay" },
+    { "src": "/api/payments/webhook",        "dest": "/api/payments/webhook" },
+    { "src": "/api/webhooks/welcome",        "dest": "/api/webhooks/welcome" },
+    { "src": "/api/webhooks/order",          "dest": "/api/webhooks/order" },
+    { "src": "/app",                         "dest": "/app.html" },
+    { "src": "/app/(.*)",                    "dest": "/app.html" },
     { "handle": "filesystem" },
-    { "src": "/app(.*)", "dest": "/app.html" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)",                        "dest": "/index.html" }
   ]
 }
