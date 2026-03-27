@@ -30,6 +30,7 @@ export interface Outlet {
   timings?: string;
   rating?: number;
   totalOrders?: number;
+  loginCode?: string;
 }
 
 export interface MenuItem {

@@ -236,7 +236,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                 <p className="text-xs text-white/40">Enter your unique merchant code to access your dashboard.</p>
                 <div className="relative">
                   <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
-                  <input type="text" placeholder="e.g. FRIENDS2024"
+                  <input type="text" placeholder="Enter merchant code"
                     className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-klu-red/50 text-white placeholder:text-white/20 uppercase tracking-widest"
                     style={{ colorScheme: 'dark' }}
                     value={merchantCode}

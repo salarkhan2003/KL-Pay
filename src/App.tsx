@@ -252,7 +252,7 @@ export default function App() {
   };
 
   const merchantCodeLogin = async (code: string): Promise<boolean> => {
-    const outletId = getMerchantOutletByCode(code);
+    const outletId = await getMerchantOutletByCode(code);
     if (!outletId) return false;
     const seedOutlet = SEED_OUTLETS.find(o => o.id === outletId);
     const p: UserProfile = {

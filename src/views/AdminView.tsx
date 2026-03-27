@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BarChart3, TrendingUp, Users, Plus, Trash2, Settings,
-  X, Store, Tag, Link, CreditCard, Clock, ChevronDown, ChevronUp
+  X, Store, Tag, Link, CreditCard, Clock, ChevronDown, ChevronUp, KeyRound, Check
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { ClayButton } from '../components/ClayButton';
@@ -81,6 +81,90 @@ const ConfirmDelete: React.FC<{ label: string; onCancel: () => void; onConfirm: 
         </div>
       </motion.div>
     </motion.div>
+  );
+};
+
+// ── Merchant Codes Section ────────────────────────────────────────────────────
+const MerchantCodesSection: React.FC<{ outlets: Outlet[] }> = ({ outlets }) => {
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  // Load current login_code for all outlets
+  useEffect(() => {
+    supabase.from('outlets').select('id, login_code').then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach((r: any) => { map[r.id] = r.login_code || ''; });
+        setCodes(map);
+      }
+    });
+  }, [outlets]);
+
+  const handleSave = async (outletId: string) => {
+    setSaving(outletId);
+    const code = (codes[outletId] || '').toUpperCase().trim();
+    await supabase.from('outlets').update({ login_code: code || null }).eq('id', outletId);
+    setCodes(p => ({ ...p, [outletId]: code }));
+    setSaving(null);
+    setEditing(null);
+    setSaved(outletId);
+    setTimeout(() => setSaved(null), 2000);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-display font-black text-lg flex items-center gap-2">
+        <KeyRound className="w-5 h-5 text-klu-red" /> Merchant Login Codes
+      </h3>
+      <p className="text-xs text-white/30">Set the login code each merchant uses to access their dashboard.</p>
+      <div className="space-y-2">
+        {outlets.map(outlet => (
+          <div key={outlet.id} className="glass-frosted rounded-[20px] border border-white/10 p-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm truncate">{outlet.name}</p>
+              <p className="text-[10px] text-white/30">{outlet.blockName}</p>
+            </div>
+            {editing === outlet.id ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  className="w-32 h-9 bg-[#1a0a0e] border border-white/20 rounded-xl px-3 text-xs font-black uppercase tracking-widest text-white focus:outline-none focus:ring-2 focus:ring-klu-red/50"
+                  value={codes[outlet.id] || ''}
+                  placeholder="e.g. CANTEEN01"
+                  onChange={e => setCodes(p => ({ ...p, [outlet.id]: e.target.value.toUpperCase() }))}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSave(outlet.id); if (e.key === 'Escape') setEditing(null); }}
+                />
+                <button onClick={() => handleSave(outlet.id)} disabled={!!saving}
+                  className="w-9 h-9 rounded-xl bg-klu-red flex items-center justify-center text-white disabled:opacity-50">
+                  {saving === outlet.id ? <span className="text-[10px]">...</span> : <Check className="w-4 h-4" />}
+                </button>
+                <button onClick={() => setEditing(null)}
+                  className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-white/30">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  'px-3 py-1.5 rounded-xl text-xs font-black tracking-widest border',
+                  codes[outlet.id]
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                    : 'bg-white/5 border-white/10 text-white/20'
+                )}>
+                  {saved === outlet.id ? '✓ Saved' : codes[outlet.id] || 'No code'}
+                </span>
+                <button onClick={() => setEditing(outlet.id)}
+                  className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-white/30 hover:text-white transition-colors">
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
@@ -267,6 +351,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         ))}
       </div>
+
+      <MerchantCodesSection outlets={outlets} />
 
       <GlassCard className="p-5">
         <h3 className="font-black mb-1">System Tools</h3>

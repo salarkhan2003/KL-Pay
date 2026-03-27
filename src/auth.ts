@@ -163,11 +163,14 @@ export async function signOutUser(): Promise<void> {
 }
 
 // ── Merchant code login ───────────────────────────────────────────────────────
-const MERCHANT_CODES: Record<string, string> = {
-  'FRIENDS2024': 'friends-canteen',
-  'TESTCANTEEN': 'test-canteen',
-};
-
-export function getMerchantOutletByCode(code: string): string | null {
-  return MERCHANT_CODES[code.toUpperCase()] || null;
+// Codes are stored in the `outlets` table (login_code column).
+// To add/remove/change a merchant code → update it directly in Supabase.
+export async function getMerchantOutletByCode(code: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('outlets')
+    .select('id')
+    .eq('login_code', code.toUpperCase())
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.id;
 }
