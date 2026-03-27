@@ -1,21 +1,18 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, Mail, Phone, ArrowRight, AlertCircle, Loader2,
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
-  CheckCircle2, User, Hash, Home, Lock, Timer, Building2,
+  CheckCircle2, User, Hash, Lock, Building2, Timer,
 } from 'lucide-react';
-import {
-  registerUser, getAuthErrorMessage,
-  ProfileExtras, saveUserProfile,
-} from '../auth';
+import { registerUser, getAuthErrorMessage, ProfileExtras, saveUserProfile } from '../auth';
 import { supabase } from '../supabase';
+import { UserProfile } from '../types';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
 import { cn } from '../utils';
 
 const DEV_PIN = 'KLU2026';
-
 const GENDERS = [
   { value: 'male',   label: 'Male'   },
   { value: 'female', label: 'Female' },
@@ -29,128 +26,125 @@ interface LoginPageProps {
   onMerchantCodeLogin: (code: string) => Promise<boolean>;
 }
 
-type Tab = 'login' | 'register';
-type Step = 'auth' | 'merchant_code' | 'confirmed';
-type DevStep = 'pin' | 'role';
+type Tab      = 'login' | 'register';
+type Step     = 'auth' | 'merchant_code' | 'confirmed';
+type DevStep  = 'pin' | 'role';
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplete, onDevLogin, onMerchantCodeLogin }) => {
-  const [tab, setTab] = useState<Tab>('login');
+export const LoginPage: React.FC<LoginPageProps> = ({
+  onSkip, onMagicLinkComplete, onDevLogin, onMerchantCodeLogin,
+}) => {
+  const [tab,  setTab]  = useState<Tab>('login');
   const [step, setStep] = useState<Step>('auth');
 
-  // Login fields
-  const [loginEmail, setLoginEmail] = useState('');
+  // Login
+  const [loginEmail,    setLoginEmail]    = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [showLoginPw, setShowLoginPw] = useState(false);
-  const [loginCooldown, setLoginCooldown] = useState(0);
-  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [loginLoading,  setLoginLoading]  = useState(false);
+  const [loginError,    setLoginError]    = useState('');
+  const [showLoginPw,   setShowLoginPw]   = useState(false);
 
-  // Register fields
-  const [regEmail, setRegEmail] = useState('');
+  // Register
+  const [regEmail,    setRegEmail]    = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regName, setRegName] = useState('');
-  const [regUnivId, setRegUnivId] = useState('');
-  const [regGender, setRegGender] = useState<'male' | 'female' | 'other' | ''>('');
-  const [regHostel, setRegHostel] = useState('');
-  const [regLoading, setRegLoading] = useState(false);
-  const [regError, setRegError] = useState('');
-  const [showRegPw, setShowRegPw] = useState(false);
+  const [regPhone,    setRegPhone]    = useState('');
+  const [regName,     setRegName]     = useState('');
+  const [regUnivId,   setRegUnivId]   = useState('');
+  const [regGender,   setRegGender]   = useState<'male' | 'female' | 'other' | ''>('');
+  const [regHostel,   setRegHostel]   = useState('');
+  const [regLoading,  setRegLoading]  = useState(false);
+  const [regError,    setRegError]    = useState('');
+  const [showRegPw,   setShowRegPw]   = useState(false);
 
   // Merchant code
-  const [merchantCode, setMerchantCode] = useState('');
-  const [merchantCodeError, setMerchantCodeError] = useState('');
+  const [merchantCode,        setMerchantCode]        = useState('');
+  const [merchantCodeError,   setMerchantCodeError]   = useState('');
   const [merchantCodeLoading, setMerchantCodeLoading] = useState(false);
 
   // Dev modal
   const [showDevModal, setShowDevModal] = useState(false);
-  const [devStep, setDevStep] = useState<DevStep>('pin');
-  const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [devLoading, setDevLoading] = useState(false);
+  const [devStep,      setDevStep]      = useState<DevStep>('pin');
+  const [pin,          setPin]          = useState('');
+  const [pinError,     setPinError]     = useState('');
+  const [showPin,      setShowPin]      = useState(false);
+  const [devLoading,   setDevLoading]   = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
   // Legal modal
   const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | null>(null);
 
-  const startCooldown = useCallback((seconds: number) => {
-    setLoginCooldown(seconds);
-    if (cooldownRef.current) clearInterval(cooldownRef.current);
-    cooldownRef.current = setInterval(() => {
-      setLoginCooldown(prev => {
-        if (prev <= 1) { clearInterval(cooldownRef.current!); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
+  // ── Login — retries up to 3x on network errors, no hard timeouts ───────────
   const handleLogin = async () => {
-    if (loginCooldown > 0) return;
     setLoginError('');
-    if (!loginEmail || !loginPassword) { setLoginError('Enter your email and password.'); return; }
+    if (!loginEmail.trim() || !loginPassword) {
+      setLoginError('Enter your email and password.');
+      return;
+    }
     setLoginLoading(true);
-    // Hard 8s timeout on the entire login flow — prevents infinite spinner
-    const loginTimeout = setTimeout(() => {
-      setLoginLoading(false);
-      setLoginError('Login timed out. Check your connection and try again.');
-    }, 8000);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.trim().toLowerCase(),
-        password: loginPassword,
-      });
-      if (error) throw error;
-      const uid = data.user.id;
-      const email = data.user.email || loginEmail;
-      // Save profile with a 4s timeout — don't block login if DB is slow
-      try {
-        const profile = await Promise.race([
-          saveUserProfile(uid, email, '', {}),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
-        ]);
-        clearTimeout(loginTimeout);
-        await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
-      } catch {
-        // Profile save timed out or failed — still log in with basic info
-        clearTimeout(loginTimeout);
-        await onMagicLinkComplete(uid, email, '');
+      let authData: any = null;
+      let lastErr: any  = null;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email:    loginEmail.trim().toLowerCase(),
+          password: loginPassword,
+        });
+        if (!error) { authData = data; break; }
+        lastErr = error;
+        const m = (error.message ?? '').toLowerCase();
+        // Credential / auth errors — show immediately, no retry
+        if (
+          m.includes('invalid') || m.includes('not confirmed') ||
+          m.includes('rate limit') || m.includes('too many')
+        ) break;
+        // Network / server error — wait then retry
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
       }
+
+      if (!authData) throw lastErr;
+
+      const uid   = authData.user.id;
+      const email = authData.user.email || loginEmail.trim().toLowerCase();
+
+      // Profile load is best-effort — login always succeeds even if DB is slow
+      let profile: UserProfile | null = null;
+      try { profile = await saveUserProfile(uid, email, '', {}); } catch { /* ignore */ }
+
+      await onMagicLinkComplete(
+        profile?.uid   ?? uid,
+        profile?.email ?? email,
+        profile?.phone ?? '',
+      );
     } catch (err: any) {
-      clearTimeout(loginTimeout);
-      const msg = getAuthErrorMessage(err);
-      setLoginError(msg);
-      if (msg.includes('Too many attempts')) startCooldown(30);
+      setLoginError(getAuthErrorMessage(err));
     } finally {
       setLoginLoading(false);
     }
   };
 
+  // ── Register ────────────────────────────────────────────────────────────────
   const handleRegister = async () => {
     setRegError('');
-    if (!regName.trim()) { setRegError('Enter your full name.'); return; }
-    if (!regUnivId.trim()) { setRegError('Enter your University ID.'); return; }
-    if (!regGender) { setRegError('Select your gender.'); return; }
-    if (!regHostel.trim()) { setRegError('Enter your hostel or residence name.'); return; }
-    if (!regEmail.trim()) { setRegError('Enter your email.'); return; }
-    if (!regPhone || regPhone.length < 10) { setRegError('Enter a valid 10-digit mobile number.'); return; }
+    if (!regName.trim())        { setRegError('Enter your full name.'); return; }
+    if (!regUnivId.trim())      { setRegError('Enter your University ID.'); return; }
+    if (!regGender)             { setRegError('Select your gender.'); return; }
+    if (!regHostel.trim())      { setRegError('Enter your hostel or residence name.'); return; }
+    if (!regEmail.trim())       { setRegError('Enter your email.'); return; }
+    if (regPhone.length < 10)   { setRegError('Enter a valid 10-digit mobile number.'); return; }
     if (regPassword.length < 6) { setRegError('Password must be at least 6 characters.'); return; }
 
     setRegLoading(true);
     try {
       const extras: ProfileExtras = {
         displayName: regName.trim(),
-        studentId: regUnivId.trim(),
-        gender: regGender,
-        hostel: regHostel,
+        studentId:   regUnivId.trim(),
+        gender:      regGender,
+        hostel:      regHostel,
       };
       const profile = await registerUser(regEmail.trim(), regPassword, regPhone, extras);
       if (profile) {
-        // Email confirmation disabled — session is live, log in immediately
         await onMagicLinkComplete(profile.uid, profile.email, profile.phone || '');
       } else {
-        // Email confirmation required — show "check inbox" screen
         setStep('confirmed');
       }
     } catch (err: any) {
@@ -160,6 +154,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
     }
   };
 
+  // ── Merchant code ───────────────────────────────────────────────────────────
   const handleMerchantCodeLogin = async () => {
     if (!merchantCode.trim()) { setMerchantCodeError('Enter your merchant code.'); return; }
     setMerchantCodeLoading(true);
@@ -168,16 +163,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
     if (!success) { setMerchantCodeError('Invalid merchant code. Try again.'); setMerchantCodeLoading(false); }
   };
 
+  // ── Dev modal ───────────────────────────────────────────────────────────────
   const openDevModal = () => {
     setPin(''); setPinError(''); setDevStep('pin'); setShowDevModal(true);
     setTimeout(() => pinRef.current?.focus(), 100);
   };
-
   const handlePinSubmit = () => {
     if (pin === DEV_PIN) { setPinError(''); setDevStep('role'); }
     else { setPinError('Wrong PIN. Try again.'); setPin(''); setTimeout(() => pinRef.current?.focus(), 50); }
   };
-
   const handleRoleSelect = async (role: 'student' | 'merchant' | 'admin') => {
     setDevLoading(true);
     try { await onDevLogin(role); setShowDevModal(false); }
@@ -186,15 +180,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   };
 
   const ROLES = [
-    { role: 'student' as const, label: 'Student', desc: 'Browse food, order, pay, K-Coins', icon: GraduationCap, color: 'text-klu-red', bg: 'bg-klu-red/10 border-klu-red/30 hover:border-klu-red/60' },
-    { role: 'merchant' as const, label: 'Merchant', desc: 'Dashboard, orders, menu, alerts', icon: Store, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60' },
-    { role: 'admin' as const, label: 'Admin', desc: 'Analytics, all orders, system tools', icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60' },
+    { role: 'student'  as const, label: 'Student',  desc: 'Browse food, order, pay, K-Coins',   icon: GraduationCap, color: 'text-klu-red',    bg: 'bg-klu-red/10 border-klu-red/30 hover:border-klu-red/60' },
+    { role: 'merchant' as const, label: 'Merchant', desc: 'Dashboard, orders, menu, alerts',     icon: Store,         color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60' },
+    { role: 'admin'    as const, label: 'Admin',    desc: 'Analytics, all orders, system tools', icon: Crown,         color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60' },
   ];
 
   return (
     <div className="min-h-screen bg-crimson-dark flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] radial-glow opacity-20" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] radial-glow opacity-20" />
+
+      {/* Back to landing */}
+      <a href="/" className="absolute top-5 left-5 z-20 flex items-center gap-2 text-white/30 hover:text-white transition-colors text-sm font-bold group">
+        <ArrowRight className="w-4 h-4 rotate-180 group-hover:-translate-x-0.5 transition-transform" />
+        <span className="hidden sm:inline">Back to Home</span>
+      </a>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-6 z-10">
 
@@ -210,7 +210,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
 
         <AnimatePresence mode="wait">
 
-          {/* ── Email confirmed screen ── */}
+          {/* Email confirmed */}
           {step === 'confirmed' && (
             <motion.div key="confirmed" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
               <GlassCard className="p-8 text-center space-y-4">
@@ -219,7 +219,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                 </div>
                 <h2 className="text-xl font-black text-white">Check your inbox</h2>
                 <p className="text-sm text-white/40">A confirmation email was sent to<br /><span className="text-white font-bold">{regEmail}</span></p>
-                <p className="text-xs text-white/30">Click the link in the email to activate your account, then sign in below.</p>
+                <p className="text-xs text-white/30">Click the link in the email to activate your account, then sign in.</p>
                 <button onClick={() => { setStep('auth'); setTab('login'); setLoginEmail(regEmail); }}
                   className="w-full py-3 bg-klu-red rounded-2xl text-white font-black text-sm">
                   Go to Sign In
@@ -228,7 +228,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
             </motion.div>
           )}
 
-          {/* ── Merchant code screen ── */}
+          {/* Merchant code */}
           {step === 'merchant_code' && (
             <motion.div key="merchant_code" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               <GlassCard className="p-8 space-y-4">
@@ -256,7 +256,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
             </motion.div>
           )}
 
-          {/* ── Main auth screen ── */}
+          {/* Main auth */}
           {step === 'auth' && (
             <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               {/* Tab switcher */}
@@ -278,17 +278,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                     <motion.div key="login" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                       <form onSubmit={e => { e.preventDefault(); handleLogin(); }} className="space-y-4">
                         <InputField icon={<Mail className="w-5 h-5" />} type="email" placeholder="Email address"
-                          value={loginEmail} onChange={v => setLoginEmail(v)} onEnter={handleLogin} />
+                          value={loginEmail} onChange={setLoginEmail} onEnter={handleLogin} />
                         <PasswordField placeholder="Password" value={loginPassword}
                           show={showLoginPw} onToggle={() => setShowLoginPw(v => !v)}
-                          onChange={v => setLoginPassword(v)} onEnter={handleLogin} />
+                          onChange={setLoginPassword} onEnter={handleLogin} />
                         {loginError && <ErrorBox message={loginError} />}
-                        <ClayButton type="submit" onClick={handleLogin} className="w-full h-14" disabled={loginLoading || loginCooldown > 0}>
+                        <ClayButton type="submit" onClick={handleLogin} className="w-full h-14" disabled={loginLoading}>
                           {loginLoading
                             ? <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                            : loginCooldown > 0
-                              ? <span className="flex items-center justify-center gap-2"><Timer className="w-4 h-4" /> Retry in {loginCooldown}s</span>
-                              : 'Sign In'}
+                            : 'Sign In'}
                         </ClayButton>
                       </form>
                     </motion.div>
@@ -297,17 +295,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                   {/* REGISTER */}
                   {tab === 'register' && (
                     <motion.div key="register" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-3">
-                      <InputField icon={<User className="w-5 h-5" />} type="text" placeholder="Full Name"
-                        value={regName} onChange={v => setRegName(v)} />
-                      <InputField icon={<Hash className="w-5 h-5" />} type="text" placeholder="University ID Number"
-                        value={regUnivId} onChange={v => setRegUnivId(v)} />
-                      <InputField icon={<Mail className="w-5 h-5" />} type="email" placeholder="Email address"
-                        value={regEmail} onChange={v => setRegEmail(v)} />
+                      <InputField icon={<User className="w-5 h-5" />} type="text" placeholder="Full Name" value={regName} onChange={setRegName} />
+                      <InputField icon={<Hash className="w-5 h-5" />} type="text" placeholder="University ID Number" value={regUnivId} onChange={setRegUnivId} />
+                      <InputField icon={<Mail className="w-5 h-5" />} type="email" placeholder="Email address" value={regEmail} onChange={setRegEmail} />
                       <InputField icon={<Phone className="w-5 h-5" />} type="tel" placeholder="Mobile Number (10 digits)"
                         value={regPhone} onChange={v => setRegPhone(v.replace(/\D/g, '').slice(0, 10))} />
                       <PasswordField placeholder="Password (min 6 chars)" value={regPassword}
-                        show={showRegPw} onToggle={() => setShowRegPw(v => !v)}
-                        onChange={v => setRegPassword(v)} />
+                        show={showRegPw} onToggle={() => setShowRegPw(v => !v)} onChange={setRegPassword} />
 
                       {/* Gender */}
                       <div>
@@ -328,14 +322,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Hostel / Residence</p>
                         <div className="relative">
                           <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="e.g. Vindhya Hostel, Day Scholar..."
-                            value={regHostel}
-                            onChange={e => setRegHostel(e.target.value)}
+                          <input type="text" placeholder="e.g. Vindhya Hostel, Day Scholar..."
+                            value={regHostel} onChange={e => setRegHostel(e.target.value)}
                             style={{ colorScheme: 'dark' }}
-                            className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50"
-                          />
+                            className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-4 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50" />
                         </div>
                       </div>
 
@@ -366,7 +356,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
                 </button>
               </div>
 
-              {/* T&C + Privacy Policy */}
               <p className="text-center text-[10px] text-white/20 leading-relaxed">
                 By continuing, you agree to our{' '}
                 <button onClick={() => setShowLegal('terms')} className="text-white/40 underline hover:text-white transition-colors">Terms & Conditions</button>
@@ -493,7 +482,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSkip, onMagicLinkComplet
   );
 };
 
-// ── Small reusable components ─────────────────────────────────────────────────
+// ── Reusable sub-components ───────────────────────────────────────────────────
 
 const InputField: React.FC<{
   icon: React.ReactNode; type: string; placeholder: string;
@@ -502,9 +491,7 @@ const InputField: React.FC<{
   <div className="relative">
     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none">{icon}</span>
     <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
+      type={type} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && onEnter?.()}
       autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : 'off'}
@@ -521,23 +508,22 @@ const PasswordField: React.FC<{
   <div className="relative">
     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 pointer-events-none" />
     <input
-      type={show ? 'text' : 'password'}
-      placeholder={placeholder}
-      value={value}
+      type={show ? 'text' : 'password'} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && onEnter?.()}
       autoComplete="current-password"
       style={{ colorScheme: 'dark' }}
       className="w-full h-14 bg-[#1a0a0e] border border-white/10 rounded-2xl pl-12 pr-12 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-klu-red/50"
     />
-    <button type="button" onClick={onToggle} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60">
+    <button type="button" onClick={onToggle} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
       {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
     </button>
   </div>
 );
 
 const ErrorBox: React.FC<{ message: string }> = ({ message }) => (
-  <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20">
-    <AlertCircle className="w-4 h-4 shrink-0" />{message}
+  <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+    <p className="text-xs font-bold text-red-400">{message}</p>
   </div>
 );
