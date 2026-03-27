@@ -109,20 +109,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       const json = await res.json();
 
       if (!res.ok) {
-        // Map Supabase error codes to friendly messages
         const errMsg: string = json?.error_description || json?.msg || json?.message || 'Login failed.';
         throw new Error(errMsg);
       }
 
-      // Success — set the session in the Supabase client so the rest of the app works
-      const { access_token, refresh_token } = json;
-      await supabase.auth.setSession({ access_token, refresh_token });
-
-      const uid   = json.user?.id   || '';
+      const uid   = json.user?.id    || '';
       const email = json.user?.email || loginEmail.trim().toLowerCase();
 
-      // Navigate immediately — profile enrichment happens in background
-      await onMagicLinkComplete(uid, email, '');
+      // Set session in background — don't await, don't block navigation
+      supabase.auth.setSession({
+        access_token:  json.access_token,
+        refresh_token: json.refresh_token,
+      }).catch(() => {});
+
+      // Navigate immediately
+      onMagicLinkComplete(uid, email, '').catch(() => {});
 
     } catch (err: any) {
       const m = (err?.message ?? '').toLowerCase();
@@ -190,10 +191,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       // If session present — email confirmation disabled, log in immediately
       if (json.access_token) {
-        await supabase.auth.setSession({ access_token: json.access_token, refresh_token: json.refresh_token });
+        supabase.auth.setSession({ access_token: json.access_token, refresh_token: json.refresh_token }).catch(() => {});
         const uid   = json.user?.id    || '';
         const email = json.user?.email || regEmail.trim().toLowerCase();
-        await onMagicLinkComplete(uid, email, regPhone);
+        onMagicLinkComplete(uid, email, regPhone).catch(() => {});
       } else {
         // Email confirmation required
         setStep('confirmed');

@@ -204,39 +204,69 @@ export default function App() {
 
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+        if (sessionErr || !session?.user) {
+          // Stale/invalid session — clear it silently so it stops trying to refresh
+          if (sessionErr) supabase.auth.signOut().catch(() => {});
+        } else {
           sessionHandled = true;
-          try {
-            const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
-            persistProfile(p);
-            if (p.role === 'merchant') setView('merchant');
-            else if (p.role === 'admin') setView('admin');
-            else setView('home');
-          } catch (e) { console.warn('Profile load:', e); }
-        } else if (!cached) {
-          // No session and no cache — show login
+          const uid   = session.user.id;
+          const email = session.user.email || '';
+          const isAdmin = email.toLowerCase() === 'salarkhanpatan7861@gmail.com';
+          const cached2 = localStorage.getItem(PROFILE_KEY);
+          let p: UserProfile | null = null;
+          try { if (cached2) p = JSON.parse(cached2); } catch { /* ignore */ }
+          if (!p || p.uid !== uid) {
+            p = { uid, email, displayName: email.split('@')[0], role: isAdmin ? 'admin' : 'student', phone: '', kCoins: 0, streak: 0, block: 'CSE' };
+          }
+          persistProfile(p);
+          if (p.role === 'merchant') setView('merchant');
+          else if (p.role === 'admin') setView('admin');
+          else setView('home');
+          // Enrich from DB in background
+          saveUserProfile(uid, email, '', {}).then(full => {
+            persistProfile(full);
+            if (full.role === 'merchant') setView('merchant');
+            else if (full.role === 'admin') setView('admin');
+          }).catch(() => {});
         }
       } catch (e) { console.warn('getSession:', e); }
       clearTimeout(timeout);
       finish();
     })();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         if (sessionHandled) { sessionHandled = false; return; }
-        try {
-          const p = await saveUserProfile(session.user.id, session.user.email || '', '', {});
-          persistProfile(p); setIsSkipped(false);
-          if (p.role === 'merchant') setView('merchant');
-          else if (p.role === 'admin') setView('admin');
-          else setView('home');
-        } catch (e) { console.warn('Profile save:', e); }
+        // Build profile immediately from session data — no DB call here
+        const uid   = session.user.id;
+        const email = session.user.email || '';
+        const isAdmin = email.toLowerCase() === 'salarkhanpatan7861@gmail.com';
+        const cached = localStorage.getItem(PROFILE_KEY);
+        let p: UserProfile | null = null;
+        try { if (cached) p = JSON.parse(cached); } catch { /* ignore */ }
+        if (!p || p.uid !== uid) {
+          p = { uid, email, displayName: email.split('@')[0], role: isAdmin ? 'admin' : 'student', phone: '', kCoins: 0, streak: 0, block: 'CSE' };
+        }
+        persistProfile(p); setIsSkipped(false);
+        if (p.role === 'merchant') setView('merchant');
+        else if (p.role === 'admin') setView('admin');
+        else setView('home');
+        // Enrich from DB in background
+        saveUserProfile(uid, email, '', {}).then(full => {
+          persistProfile(full);
+          if (full.role === 'merchant') setView('merchant');
+          else if (full.role === 'admin') setView('admin');
+        }).catch(() => {});
         finish();
       } else if (event === 'SIGNED_OUT') {
-        persistProfile(null); setIsSkipped(false); setView('home'); setCart([]);
+        // Only clear profile if there's no cached profile (i.e. real logout, not stale token)
+        const cached = localStorage.getItem(PROFILE_KEY);
+        if (!cached) {
+          persistProfile(null); setIsSkipped(false); setView('home'); setCart([]);
+        }
       }
-      // Ignore TOKEN_REFRESHED — don't log out on token refresh failures
+      // TOKEN_REFRESHED, PASSWORD_RECOVERY, USER_UPDATED — all ignored
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -854,13 +884,12 @@ export default function App() {
   if (!profile && !isSkipped) return (
     <LoginPage
       onSkip={() => setIsSkipped(true)}
-      onMagicLinkComplete={async (uid, email, phone) => {
-        // Build a local profile immediately — never block on DB
+      onMagicLinkComplete={(uid, email, phone) => {
+        // Build a local profile immediately — synchronous, never blocks
         const isAdmin = email.toLowerCase() === 'salarkhanpatan7861@gmail.com';
         const cached = localStorage.getItem(PROFILE_KEY);
         let p: UserProfile | null = null;
         try { if (cached) p = JSON.parse(cached); } catch { /* ignore */ }
-        // If cached profile matches this uid, use it; otherwise build minimal one
         if (!p || p.uid !== uid) {
           p = {
             uid, email,
@@ -874,12 +903,13 @@ export default function App() {
         if (p.role === 'merchant') setView('merchant');
         else if (p.role === 'admin') setView('admin');
         else setView('home');
-        // Enrich from DB in background — don't block login
+        // Enrich from DB in background
         saveUserProfile(uid, email, phone, {}).then(full => {
           persistProfile(full);
           if (full.role === 'merchant') setView('merchant');
           else if (full.role === 'admin') setView('admin');
-        }).catch(() => { /* ignore — local profile is fine */ });
+        }).catch(() => {});
+        return Promise.resolve();
       }}
       onDevLogin={devLogin}
       onMerchantCodeLogin={merchantCodeLogin}
