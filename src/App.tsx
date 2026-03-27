@@ -855,15 +855,31 @@ export default function App() {
     <LoginPage
       onSkip={() => setIsSkipped(true)}
       onMagicLinkComplete={async (uid, email, phone) => {
-        try {
-          const p = await saveUserProfile(uid, email, phone, {});
-          persistProfile(p);
-          if (p.role === 'merchant') setView('merchant');
-          else if (p.role === 'admin') setView('admin');
-          else setView('home');
-        } catch (e) {
-          console.warn('onMagicLinkComplete:', e);
+        // Build a local profile immediately — never block on DB
+        const isAdmin = email.toLowerCase() === 'salarkhanpatan7861@gmail.com';
+        const cached = localStorage.getItem(PROFILE_KEY);
+        let p: UserProfile | null = null;
+        try { if (cached) p = JSON.parse(cached); } catch { /* ignore */ }
+        // If cached profile matches this uid, use it; otherwise build minimal one
+        if (!p || p.uid !== uid) {
+          p = {
+            uid, email,
+            displayName: email.split('@')[0],
+            role: isAdmin ? 'admin' : 'student',
+            phone: phone || '',
+            kCoins: 0, streak: 0, block: 'CSE',
+          };
         }
+        persistProfile(p);
+        if (p.role === 'merchant') setView('merchant');
+        else if (p.role === 'admin') setView('admin');
+        else setView('home');
+        // Enrich from DB in background — don't block login
+        saveUserProfile(uid, email, phone, {}).then(full => {
+          persistProfile(full);
+          if (full.role === 'merchant') setView('merchant');
+          else if (full.role === 'admin') setView('admin');
+        }).catch(() => { /* ignore — local profile is fine */ });
       }}
       onDevLogin={devLogin}
       onMerchantCodeLogin={merchantCodeLogin}

@@ -1,14 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL     || 'https://hnezkwnefmjvbdwlyubj.supabase.co';
+const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL      || 'https://hnezkwnefmjvbdwlyubj.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-vmOek-tuP3rVG1-liLJAw_HRbAx0Bi';
+
+// Fetch with a 15s timeout — prevents infinite hangs on mobile networks
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 15000);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
-    persistSession: true,
+    persistSession:   true,
     detectSessionInUrl: true,
   },
+  global: { fetch: fetchWithTimeout },
 });
 
 export function extractStudentId(email: string): string | null {

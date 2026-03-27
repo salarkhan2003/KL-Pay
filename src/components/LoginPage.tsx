@@ -3,11 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChefHat, Mail, Phone, ArrowRight, AlertCircle, Loader2,
   Shield, Eye, EyeOff, GraduationCap, Store, Crown, X,
-  CheckCircle2, User, Hash, Lock, Building2, Timer,
+  CheckCircle2, User, Hash, Lock, Building2,
 } from 'lucide-react';
-import { registerUser, getAuthErrorMessage, ProfileExtras, saveUserProfile } from '../auth';
+import { registerUser, getAuthErrorMessage, ProfileExtras } from '../auth';
 import { supabase } from '../supabase';
-import { UserProfile } from '../types';
 import { GlassCard } from './GlassCard';
 import { ClayButton } from './ClayButton';
 import { cn } from '../utils';
@@ -72,7 +71,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Legal modal
   const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | null>(null);
 
-  // ── Login — retries up to 3x on network errors, no hard timeouts ───────────
+  // ── Login — fast, no retries, no DB calls ─────────────────────────────────
   const handleLogin = async () => {
     setLoginError('');
     if (!loginEmail.trim() || !loginPassword) {
@@ -81,40 +80,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
     setLoginLoading(true);
     try {
-      let authData: any = null;
-      let lastErr: any  = null;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email:    loginEmail.trim().toLowerCase(),
-          password: loginPassword,
-        });
-        if (!error) { authData = data; break; }
-        lastErr = error;
-        const m = (error.message ?? '').toLowerCase();
-        // Credential / auth errors — show immediately, no retry
-        if (
-          m.includes('invalid') || m.includes('not confirmed') ||
-          m.includes('rate limit') || m.includes('too many')
-        ) break;
-        // Network / server error — wait then retry
-        if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-      }
-
-      if (!authData) throw lastErr;
-
-      const uid   = authData.user.id;
-      const email = authData.user.email || loginEmail.trim().toLowerCase();
-
-      // Profile load is best-effort — login always succeeds even if DB is slow
-      let profile: UserProfile | null = null;
-      try { profile = await saveUserProfile(uid, email, '', {}); } catch { /* ignore */ }
-
-      await onMagicLinkComplete(
-        profile?.uid   ?? uid,
-        profile?.email ?? email,
-        profile?.phone ?? '',
-      );
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email:    loginEmail.trim().toLowerCase(),
+        password: loginPassword,
+      });
+      if (error) throw error;
+      // Auth succeeded — hand off immediately, no DB calls here
+      const uid   = data.user.id;
+      const email = data.user.email || loginEmail.trim().toLowerCase();
+      await onMagicLinkComplete(uid, email, '');
     } catch (err: any) {
       setLoginError(getAuthErrorMessage(err));
     } finally {
