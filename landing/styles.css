@@ -1,6 +1,22 @@
 /* ── Reset ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
+/* ── Font face with swap to prevent FOIT ── */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local('DM Sans');
+}
+@font-face {
+  font-family: 'Syne';
+  font-style: normal;
+  font-weight: 800 900;
+  font-display: swap;
+  src: local('Syne');
+}
+
 :root {
   --red: #C8102E;
   --red-dark: #a00d24;
@@ -264,14 +280,14 @@ body {
 .float-title { font-size: 0.875rem; font-weight: 700; }
 .float-sub { font-size: 0.75rem; color: var(--muted); }
 @keyframes floatY {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,100% { transform: translate3d(0,0,0); }
+  50% { transform: translate3d(0,-8px,0); }
 }
 @media(max-width:1100px) { .float-card { display: none; } }
 @media(max-width:768px) { .hero { padding: 100px 0 60px; } }
 
 /* ── SECTIONS ── */
-.section { padding: 96px 0; }
+.section { padding: 96px 0; content-visibility: auto; contain-intrinsic-size: 0 600px; }
 .section-dark { background: rgba(255,255,255,0.02); }
 .section-header { text-align: center; margin-bottom: 56px; }
 .section-title {
@@ -303,9 +319,10 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--rl);
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.2s;
+  transform: translate3d(0,0,0);
 }
-.feature-card:hover { border-color: var(--border-h); transform: translateY(-3px); }
+.feature-card:hover { border-color: var(--border-h); }
 .feature-card-highlight {
   border-color: rgba(200,16,46,0.25);
   background: linear-gradient(135deg, rgba(200,16,46,0.07) 0%, rgba(255,255,255,0.02) 100%);
@@ -362,9 +379,9 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--rl);
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.2s;
 }
-.kcoin-card:hover { border-color: var(--border-h); transform: translateY(-3px); }
+.kcoin-card:hover { border-color: var(--border-h); }
 .kcoin-icon { font-size: 2.2rem; margin-bottom: 12px; }
 .kcoin-card h3 { font-family: var(--display); font-size: 1rem; font-weight: 800; margin-bottom: 6px; }
 .kcoin-card p { font-size: 0.85rem; color: var(--muted); }
@@ -421,9 +438,9 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--rl);
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.2s;
 }
-.info-card:hover { border-color: var(--border-h); transform: translateY(-2px); }
+.info-card:hover { border-color: var(--border-h); }
 .info-card-icon { font-size: 1.8rem; margin-bottom: 12px; }
 .info-card h3 { font-family: var(--display); font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; }
 .info-card p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
