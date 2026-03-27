@@ -12,7 +12,6 @@ import { UserProfile, Outlet } from '../types';
 
 interface ProfileViewProps {
   profile: UserProfile | null;
-  user: null;
   onLogout: () => void;
   onUpdateProfile: (data: Partial<UserProfile>) => Promise<void>;
   onSwitchView: (view: any) => void;

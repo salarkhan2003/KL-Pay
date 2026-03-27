@@ -9,14 +9,13 @@ import { initiateDirectPayment } from '../paymentEngine';
 interface DirectPayViewProps {
   outlets: Outlet[];
   profile: UserProfile | null;
-  user: UserProfile | null;
   onSuccess: (amount: number, outletName: string) => void;
   onBack?: () => void;
 }
 
 type Step = 'scan' | 'amount' | 'paying';
 
-export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, user, onSuccess, onBack }) => {
+export const DirectPayView: React.FC<DirectPayViewProps> = ({ outlets, profile, onSuccess, onBack }) => {
   const [step, setStep] = useState<Step>('scan');
   const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
   const [amount, setAmount] = useState('');

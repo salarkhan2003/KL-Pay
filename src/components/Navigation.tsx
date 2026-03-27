@@ -27,7 +27,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeView, onViewChange
 
   const adminTabs = [
     { id: 'admin',        icon: LayoutDashboard, label: 'Admin' },
-    { id: 'home',         icon: Home,            label: 'Browse' },
     { id: 'transactions', icon: ArrowUpRight,    label: 'Txns' },
     { id: 'profile',      icon: User,            label: 'Profile' },
   ];

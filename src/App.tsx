@@ -113,7 +113,6 @@ function DesktopNav({ activeView, onViewChange, role, cartCount }: { activeView:
   ];
   const adminTabs = [
     { id: 'admin', icon: LayoutDashboard, label: 'Admin' },
-    { id: 'home', icon: Home, label: 'Browse' },
     { id: 'transactions', icon: ArrowUpRight, label: 'Transactions' },
     { id: 'profile', icon: User, label: 'Profile' },
   ];
@@ -164,8 +163,12 @@ export default function App() {
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [isSeeding, setIsSeeding] = useState(false);
   const [dbMissing, setDbMissing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [blockFilter, setBlockFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ message: msg, type });
@@ -432,6 +435,14 @@ export default function App() {
     const ch = supabase.channel('orders_admin').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
       supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllOrders(data.map(rowToOrder)); });
     }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile?.role]);
+
+  useEffect(() => {
+    if (profile?.role !== 'admin') return;
+    const fetchAllTx = () => supabase.from('transactions').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllTransactions(data.map(rowToTransaction)); });
+    fetchAllTx();
+    const ch = supabase.channel('transactions_admin').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllTx).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [profile?.role]);
 
@@ -890,7 +901,9 @@ export default function App() {
           {/* Mobile header */}
           <header className="lg:hidden p-6 pt-14 flex items-center justify-between sticky top-0 z-50 bg-crimson-dark/60 backdrop-blur-xl">
             <div>
-              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
+              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">
+                {profile?.role === 'admin' ? 'Admin Panel' : profile?.role === 'merchant' ? 'Merchant Dashboard' : 'Welcome back'}
+              </h2>
               <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName || 'Guest'}</h1>
             </div>
             <button onClick={logout} className="w-12 h-12 rounded-2xl glass-frosted flex items-center justify-center text-white/60 hover:text-klu-red transition-all active:scale-90">
@@ -901,8 +914,24 @@ export default function App() {
           {/* Desktop header */}
           <header className="hidden lg:flex p-8 items-center justify-between border-b border-white/5">
             <div>
-              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">Welcome back</h2>
+              <h2 className="text-[10px] font-black text-klu-red uppercase tracking-[0.2em] mb-1">
+                {profile?.role === 'admin' ? 'KL ONE · Admin Panel' : profile?.role === 'merchant' ? 'KL ONE · Merchant Dashboard' : 'KL ONE · Campus Food'}
+              </h2>
               <h1 className="text-2xl font-black text-white tracking-tight">{profile?.displayName || 'Guest'}</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              {profile?.role === 'admin' && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Live · Admin</span>
+                </div>
+              )}
+              {profile?.role === 'merchant' && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live · Merchant</span>
+                </div>
+              )}
             </div>
           </header>
 
@@ -921,20 +950,32 @@ export default function App() {
               </a>
             </div>
           )}
-          <main className="flex-1 p-6 lg:p-10 max-w-3xl w-full mx-auto pb-28 lg:pb-10">
+          <main className={cn(
+            'flex-1 p-6 pb-28 lg:pb-10 w-full mx-auto',
+            (profile?.role === 'admin' || profile?.role === 'merchant' || view === 'admin' || view === 'merchant' || view === 'merchant_menu')
+              ? 'lg:p-8 max-w-none'
+              : 'lg:p-10 max-w-3xl'
+          )}>
             <AnimatePresence mode="wait">
-              {view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery="" setSearchQuery={() => {}} blockFilter="All" setBlockFilter={() => {}} categoryFilter="All" setCategoryFilter={() => {}} />}
-              {view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} cart={cart} onBack={() => setView('home')} onAddToCart={addToCart} onUpdateQuantity={updateCartQuantity} onRemoveFromCart={removeItemFromCart} onGoToCart={() => setView('cart')} />}
-              {view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
-              {view === 'orders' && <OrdersView orders={orders} outlets={outlets} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
-              {view === 'profile' && <ProfileView profile={profile} user={null} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
+              {/* ── Admin: only admin panel, transactions tab, profile, support ── */}
+              {profile?.role === 'admin' && view !== 'profile' && view !== 'support' && view !== 'terms' && view !== 'privacy' && view !== 'admin' && view !== 'transactions' &&
+                <AdminView key="admin-guard" initialTab="overview" allOrders={allOrders} allTransactions={allTransactions} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
+              {profile?.role === 'admin' && view === 'transactions' &&
+                <AdminView key="admin-tx" initialTab="transactions" allOrders={allOrders} allTransactions={allTransactions} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
+              {/* ── Student/Guest views ── */}
+              {profile?.role !== 'admin' && view === 'home' && <HomeView outlets={outlets} onSelectOutlet={o => { setSelectedOutlet(o); setView('outlet'); }} searchQuery={searchQuery} setSearchQuery={setSearchQuery} blockFilter={blockFilter} setBlockFilter={setBlockFilter} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} />}
+              {profile?.role !== 'admin' && view === 'outlet' && selectedOutlet && <OutletDetailView outlet={selectedOutlet} menuItems={menuItems} cart={cart} onBack={() => setView('home')} onAddToCart={addToCart} onUpdateQuantity={updateCartQuantity} onRemoveFromCart={removeItemFromCart} onGoToCart={() => setView('cart')} />}
+              {profile?.role !== 'admin' && view === 'cart' && <CartView cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeItemFromCart} onCheckout={handleCheckout} onBack={() => setView('home')} />}
+              {profile?.role !== 'admin' && view === 'orders' && <OrdersView orders={orders} outlets={outlets} onReorder={o => reorder(o.items)} onBack={() => setView('home')} />}
+              {profile?.role !== 'admin' && view === 'kcoins' && <KCoinsView profile={profile} onBack={() => setView('profile')} />}
+              {profile?.role !== 'admin' && view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} onBack={() => setView('home')} />}
+              {profile?.role !== 'admin' && view === 'transactions' && <TransactionHistoryView transactions={transactions} onBack={() => setView('profile')} />}
+              {/* ── Shared views ── */}
+              {view === 'profile' && <ProfileView profile={profile} onLogout={logout} onUpdateProfile={updateProfile} onSwitchView={setView} outlets={outlets} onAssignOutlet={assignOutlet} assignedOutlet={merchantOutlet || null} />}
               {view === 'merchant' && <MerchantView orders={merchantOrders} outlets={outlets} merchantOutlet={merchantOutlet || null} onUpdateStatus={updateOrderStatus} onSwitchView={setView} menu={merchantMenu} onSaveItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteItem={id => deleteMenuItem(id)} onToggleAvailability={toggleMenuItemAvailability} onSaveOutlet={saveOutlet} onAssignOutlet={assignOutlet} allMerchantOutlets={outlets.filter(o => o.merchantId === profile?.uid || (profile?.merchantOutletId && o.id === profile.merchantOutletId))} />}
               {view === 'merchant_menu' && <MerchantMenuView menu={merchantMenu} onToggleAvailability={toggleMenuItemAvailability} onSaveItem={item => saveMenuItem(item)} onDeleteItem={id => deleteMenuItem(id)} onBack={() => setView('merchant')} />}
               {view === 'support' && <SupportView tickets={supportTickets} onSubmitTicket={submitSupportTicket} onBack={() => setView('profile')} userEmail={profile?.email} userName={profile?.displayName} />}
-              {view === 'kcoins' && <KCoinsView profile={profile} onBack={() => setView('profile')} />}
-              {view === 'direct_pay' && <DirectPayView outlets={outlets} profile={profile} user={null} onSuccess={(amount, outletName) => showToast(`Paying Rs.${amount} to ${outletName}...`)} onBack={() => setView('home')} />}
-              {view === 'transactions' && <TransactionHistoryView transactions={transactions} onBack={() => setView('profile')} />}
-              {view === 'admin' && <AdminView allOrders={allOrders} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
+              {view === 'admin' && <AdminView key="admin-main" initialTab="overview" allOrders={allOrders} allTransactions={allTransactions} outlets={outlets} onSeedData={seedCanteenData} isSeeding={isSeeding} onSaveOutlet={saveOutlet} onDeleteOutlet={deleteOutlet} onSaveMenuItem={(item, outletId) => saveMenuItem(item, outletId)} onDeleteMenuItem={(itemId, outletId) => deleteMenuItem(itemId, outletId)} />}
               {(view === 'terms' || view === 'privacy') && <LegalView type={view as 'terms' | 'privacy'} onBack={() => setView('profile')} />}
             </AnimatePresence>
           </main>
