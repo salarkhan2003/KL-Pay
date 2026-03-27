@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "sync-landing": "xcopy /E /Y landing public\\landing\\",
+    "build": "npm run sync-landing && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

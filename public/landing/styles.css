@@ -408,6 +408,12 @@ body {
 .footer-col a:hover { color: #fff; }
 .footer-bottom { padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 0.78rem; color: var(--dim); }
 
+/* ── BACK BUTTON ── */
+.footer-back { display: flex; align-items: center; justify-content: center; padding: 18px 0 4px; }
+.footer-back a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 0.82rem; font-weight: 700; padding: 10px 20px; border: 1px solid var(--border); border-radius: 50px; transition: all 0.2s; }
+.footer-back a:hover { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+.footer-back a svg { width: 16px; height: 16px; flex-shrink: 0; }
+
 /* ── PAGE HERO ── */
 .page-hero { padding: 150px 0 72px; text-align: center; position: relative; overflow: hidden; }
 .page-hero-glow {
