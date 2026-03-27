@@ -16,6 +16,7 @@
     { "src": "/api/webhooks/welcome",         "dest": "/api/webhooks/welcome" },
     { "src": "/api/webhooks/order",           "dest": "/api/webhooks/order" },
     { "handle": "filesystem" },
+    { "src": "/app(.*)", "dest": "/app.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact — KL ONE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">KL<span>ONE</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="payments.html">Payments</a></li>
+        <li><a href="ordering.html">Ordering</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="../index.html" class="btn-ghost">Sign In</a>
+        <a href="../index.html" class="btn-primary">Get Started</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="payments.html">Payments</a>
+      <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+      <a href="../index.html" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-glow"></div>
+    <div class="container">
+      <div class="badge">📬 Get in Touch</div>
+      <h1>Contact<br/><span class="gradient-text">Support</span></h1>
+      <p>Have a question, issue, or feedback? We're here to help. For the fastest response, use the in-app support system.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="contact-grid">
+        <div>
+          <h2 class="section-title" style="text-align:left;font-size:1.8rem;margin-bottom:24px;">Send us a message</h2>
+          <form class="contact-form" onsubmit="handleSubmit(event)">
+            <div class="form-group">
+              <label for="name">Full Name</label>
+              <input type="text" id="name" placeholder="Your full name" required />
+            </div>
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <input type="email" id="email" placeholder="your@kluniversity.in" required />
+            </div>
+            <div class="form-group">
+              <label for="subject">Subject</label>
+              <select id="subject">
+                <option value="">Select a topic</option>
+                <option value="payment">Payment Issue</option>
+                <option value="refund">Refund Request</option>
+                <option value="order">Order Problem</option>
+                <option value="account">Account Issue</option>
+                <option value="merchant">Merchant Enquiry</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="message">Message</label>
+              <textarea id="message" rows="5" placeholder="Describe your issue or question in detail..." required></textarea>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;justify-content:center;">Send Message</button>
+            <p id="form-success" style="display:none;color:#4ade80;font-size:0.875rem;text-align:center;margin-top:8px;">✓ Message sent! We'll get back to you within 24 hours.</p>
+          </form>
+        </div>
+        <div class="contact-info">
+          <div class="contact-info-item">
+            <div class="contact-info-icon">📱</div>
+            <div>
+              <h4>In-App Support (Fastest)</h4>
+              <p>Open KL ONE → Profile → Support → Create a ticket. We respond within 2 hours during campus hours.</p>
+            </div>
+          </div>
+          <div class="contact-info-item">
+            <div class="contact-info-icon">📧</div>
+            <div>
+              <h4>Email Support</h4>
+              <p>support@klone.in — We respond within 24 hours on business days.</p>
+            </div>
+          </div>
+          <div class="contact-info-item">
+            <div class="contact-info-icon">🏫</div>
+            <div>
+              <h4>Campus Office</h4>
+              <p>KL University, Vaddeswaram, Guntur District, Andhra Pradesh — 522302</p>
+            </div>
+          </div>
+          <div class="contact-info-item">
+            <div class="contact-info-icon">⏰</div>
+            <div>
+              <h4>Support Hours</h4>
+              <p>Monday – Saturday: 8:00 AM – 8:00 PM IST<br/>Sunday: 10:00 AM – 4:00 PM IST</p>
+            </div>
+          </div>
+          <div class="contact-info-item">
+            <div class="contact-info-icon">⚡</div>
+            <div>
+              <h4>Payment Issues</h4>
+              <p>For urgent payment issues, use the in-app support ticket system and mark it as "High Priority".</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="nav-logo">KL<span>ONE</span></div>
+          <p>The official campus super-app for KL University.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="features.html">Features</a><a href="payments.html">Payments</a>
+          <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="terms.html">Terms & Conditions</a><a href="privacy.html">Privacy Policy</a>
+          <a href="refund.html">Refund Policy</a><a href="gateway.html">Payment Gateway</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="contact.html">Contact Us</a><a href="faq.html">FAQ</a>
+          <a href="../index.html">App Login</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 KL ONE. Built for KL University. All rights reserved.</p>
+        <p>Payments powered by <strong>Cashfree</strong> · Hosted on <strong>Vercel</strong></p>
+      </div>
+    </div>
+  </footer>
+  <script src="nav.js"></script>
+  <script>
+    function handleSubmit(e) {
+      e.preventDefault();
+      document.getElementById('form-success').style.display = 'block';
+      e.target.reset();
+    }
+  </script>
+</body>
+</html>

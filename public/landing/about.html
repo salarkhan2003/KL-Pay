@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About — KL ONE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">KL<span>ONE</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="payments.html">Payments</a></li>
+        <li><a href="ordering.html">Ordering</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="../index.html" class="btn-ghost">Sign In</a>
+        <a href="../index.html" class="btn-primary">Get Started</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="payments.html">Payments</a>
+      <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+      <a href="../index.html" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-glow"></div>
+    <div class="container">
+      <div class="badge">🎓 About KL ONE</div>
+      <h1>Built for<br/><span class="gradient-text">KL University</span></h1>
+      <p>KL ONE is the official campus super-app — designed to make student life simpler, faster, and more rewarding.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split-section">
+        <div class="split-content">
+          <div class="badge">Our Mission</div>
+          <h2 class="section-title" style="text-align:left;">Simplifying<br/><span class="gradient-text">Campus Life</span></h2>
+          <p class="section-sub" style="text-align:left;">KL ONE was built to solve a real problem: students wasting time in queues, merchants struggling with cash management, and no unified way to pay on campus.</p>
+          <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.8;margin-top:16px;">We built a platform that connects every student, merchant, and administrator on campus through a single, beautiful app — with real-time ordering, instant UPI payments, and a rewards system that makes every purchase count.</p>
+        </div>
+        <div class="split-visual">
+          <div class="glass-card" style="padding:32px;">
+            <div style="display:flex;flex-direction:column;gap:20px;">
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div style="font-size:2rem;">🎯</div>
+                <div>
+                  <div style="font-weight:700;margin-bottom:4px;">Zero Queue Ordering</div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">Order ahead, pick up when ready</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div style="font-size:2rem;">💳</div>
+                <div>
+                  <div style="font-weight:700;margin-bottom:4px;">Cashless Campus</div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">UPI payments for everything on campus</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div style="font-size:2rem;">🪙</div>
+                <div>
+                  <div style="font-weight:700;margin-bottom:4px;">Rewards Every Order</div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">K-Coins on every transaction</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div style="font-size:2rem;">📊</div>
+                <div>
+                  <div style="font-weight:700;margin-bottom:4px;">Full Transparency</div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">Every rupee tracked and visible</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Tech Stack</h2>
+        <p class="section-sub">Built with modern, production-grade technology.</p>
+      </div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-card-icon">⚛️</div>
+          <h3>React + TypeScript</h3>
+          <p>Frontend built with React 19 and TypeScript for type-safe, maintainable code.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🔥</div>
+          <h3>Firebase</h3>
+          <p>Firebase Auth for secure login and Firestore for real-time data sync across all users.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">⚡</div>
+          <h3>Supabase</h3>
+          <p>PostgreSQL database with row-level security, real-time subscriptions, and instant APIs.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">💳</div>
+          <h3>Cashfree Payments</h3>
+          <p>PCI-DSS compliant payment gateway for UPI split payments and instant settlements.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">▲</div>
+          <h3>Vercel</h3>
+          <p>Deployed on Vercel with serverless API functions for zero-maintenance infrastructure.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🎨</div>
+          <h3>Tailwind CSS + Motion</h3>
+          <p>Utility-first styling with smooth animations powered by Motion (Framer Motion).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Platform Numbers</h2>
+      </div>
+      <div class="info-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+        <div class="info-card" style="text-align:center;">
+          <div style="font-family:var(--font-display);font-size:3rem;font-weight:900;color:var(--red);margin-bottom:8px;">10K+</div>
+          <div style="font-weight:700;">Students</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Active on campus</div>
+        </div>
+        <div class="info-card" style="text-align:center;">
+          <div style="font-family:var(--font-display);font-size:3rem;font-weight:900;color:var(--red);margin-bottom:8px;">50+</div>
+          <div style="font-weight:700;">Outlets</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Campus canteens & shops</div>
+        </div>
+        <div class="info-card" style="text-align:center;">
+          <div style="font-family:var(--font-display);font-size:3rem;font-weight:900;color:var(--red);margin-bottom:8px;">₹2.50</div>
+          <div style="font-weight:700;">Platform Fee</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Flat per transaction</div>
+        </div>
+        <div class="info-card" style="text-align:center;">
+          <div style="font-family:var(--font-display);font-size:3rem;font-weight:900;color:var(--red);margin-bottom:8px;">99.9%</div>
+          <div style="font-weight:700;">Uptime</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Platform availability</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="cta-glow"></div>
+    <div class="container">
+      <h2 class="cta-title">Join the campus revolution.</h2>
+      <p class="cta-sub">KL ONE is free for all KL University students and merchants.</p>
+      <a href="../index.html" class="btn-primary btn-lg">Get Started Free</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="nav-logo">KL<span>ONE</span></div>
+          <p>The official campus super-app for KL University.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="features.html">Features</a><a href="payments.html">Payments</a>
+          <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="terms.html">Terms & Conditions</a><a href="privacy.html">Privacy Policy</a>
+          <a href="refund.html">Refund Policy</a><a href="gateway.html">Payment Gateway</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="contact.html">Contact Us</a><a href="faq.html">FAQ</a>
+          <a href="../index.html">App Login</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 KL ONE. Built for KL University. All rights reserved.</p>
+        <p>Payments powered by <strong>Cashfree</strong> · Hosted on <strong>Vercel</strong></p>
+      </div>
+    </div>
+  </footer>
+  <script src="nav.js"></script>
+</body>
+</html>

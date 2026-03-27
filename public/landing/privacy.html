@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — KL ONE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">KL<span>ONE</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="payments.html">Payments</a></li>
+        <li><a href="ordering.html">Ordering</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="../index.html" class="btn-ghost">Sign In</a>
+        <a href="../index.html" class="btn-primary">Get Started</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="payments.html">Payments</a>
+      <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+      <a href="../index.html" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-glow"></div>
+    <div class="container">
+      <div class="badge">🔒 Privacy</div>
+      <h1>Privacy<br/><span class="gradient-text">Policy</span></h1>
+      <p>We take your privacy seriously. Here's exactly what data we collect and how we use it.</p>
+    </div>
+  </section>
+
+  <section class="prose-section">
+    <div class="prose-container">
+      <div class="prose-card">
+        <p class="prose-meta">Last updated: March 2026 · Effective immediately</p>
+
+        <h2>1. Introduction</h2>
+        <p>KL ONE ("we", "our", "the Platform") is committed to protecting your personal information. This Privacy Policy explains what data we collect, how we use it, and your rights regarding your data. By using KL ONE, you consent to the practices described in this policy.</p>
+
+        <h2>2. Data We Collect</h2>
+        <p>We collect the following categories of personal data:</p>
+        <ul>
+          <li><strong>Identity data:</strong> Full name, student/employee ID, gender</li>
+          <li><strong>Contact data:</strong> Email address, phone number</li>
+          <li><strong>Academic data:</strong> Hostel name, block, department</li>
+          <li><strong>Transaction data:</strong> Order history, payment amounts, Cashfree order IDs, K-Coins balance</li>
+          <li><strong>Usage data:</strong> App interactions, feature usage, session timestamps</li>
+          <li><strong>Device data:</strong> Browser type, operating system (for web app)</li>
+        </ul>
+
+        <h2>3. How We Collect Data</h2>
+        <ul>
+          <li>Directly from you when you register, update your profile, or place an order</li>
+          <li>Automatically when you use the platform (usage and device data)</li>
+          <li>From Cashfree when a payment is processed (transaction confirmation data only)</li>
+          <li>From Firebase Authentication when you sign in with Google</li>
+        </ul>
+
+        <h2>4. How We Use Your Data</h2>
+        <p>Your data is used exclusively to operate and improve KL ONE:</p>
+        <ul>
+          <li>Process and fulfill food orders</li>
+          <li>Process payments and issue refunds</li>
+          <li>Award and track K-Coins</li>
+          <li>Send order status notifications</li>
+          <li>Provide customer support</li>
+          <li>Detect and prevent fraud</li>
+          <li>Improve platform performance and features</li>
+          <li>Comply with legal obligations</li>
+        </ul>
+
+        <h2>5. Payment Data</h2>
+        <p>Payment processing is handled entirely by Cashfree Payments. KL ONE does not store, process, or transmit your card numbers, UPI PINs, bank account details, or any sensitive payment credentials. We only store:</p>
+        <ul>
+          <li>Cashfree order IDs (for reference)</li>
+          <li>Transaction amounts</li>
+          <li>Payment status (paid/failed/pending)</li>
+        </ul>
+        <p>For Cashfree's data practices, refer to their <a href="https://www.cashfree.com/privacy-policy" target="_blank" rel="noopener" style="color:#ff6b85;">Privacy Policy</a>.</p>
+
+        <h2>6. Data Storage & Security</h2>
+        <p>Your data is stored on Supabase (PostgreSQL) and Firebase Firestore — both industry-leading cloud platforms with enterprise-grade security:</p>
+        <ul>
+          <li>Data encrypted at rest using AES-256</li>
+          <li>Data encrypted in transit using TLS 1.3</li>
+          <li>Row-level security (RLS) policies ensure users can only access their own data</li>
+          <li>Firebase Authentication handles identity with industry-standard OAuth 2.0</li>
+        </ul>
+
+        <h2>7. Data Sharing</h2>
+        <p>We do not sell your personal data. We share data only with:</p>
+        <ul>
+          <li><strong>Cashfree Payments</strong> — to process transactions (name, phone, email, amount)</li>
+          <li><strong>Campus Merchants</strong> — your name and phone number are shared with the merchant when you place an order, so they can prepare and hand over your food</li>
+          <li><strong>KL University Administration</strong> — aggregated, anonymized usage statistics only</li>
+          <li><strong>Legal authorities</strong> — if required by law or court order</li>
+        </ul>
+
+        <h2>8. Data Retention</h2>
+        <p>We retain your data for as long as your account is active. Transaction records are retained for 7 years as required by Indian financial regulations. You may request deletion of your account and personal data at any time (see Section 10).</p>
+
+        <h2>9. Cookies & Local Storage</h2>
+        <p>KL ONE uses browser local storage to maintain your login session and preferences. We do not use third-party tracking cookies or advertising cookies. Session data is cleared when you log out.</p>
+
+        <h2>10. Your Rights</h2>
+        <p>You have the right to:</p>
+        <ul>
+          <li><strong>Access</strong> — request a copy of your personal data</li>
+          <li><strong>Correction</strong> — update inaccurate data via your profile settings</li>
+          <li><strong>Deletion</strong> — request deletion of your account and associated data</li>
+          <li><strong>Portability</strong> — request your transaction data in a machine-readable format</li>
+          <li><strong>Objection</strong> — object to processing of your data for specific purposes</li>
+        </ul>
+        <p>To exercise these rights, submit a request via the in-app support system or contact us at our <a href="contact.html" style="color:#ff6b85;">Contact page</a>.</p>
+
+        <h2>11. Children's Privacy</h2>
+        <p>KL ONE is intended for university students aged 18 and above. We do not knowingly collect data from individuals under 18. If you believe a minor has registered, please contact us immediately.</p>
+
+        <h2>12. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy periodically. We will notify you of significant changes via the app. Continued use after changes constitutes acceptance of the updated policy.</p>
+
+        <h2>13. Contact</h2>
+        <p>For privacy-related queries or data requests, contact us through the in-app support system or visit our <a href="contact.html" style="color:#ff6b85;">Contact page</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="nav-logo">KL<span>ONE</span></div>
+          <p>The official campus super-app for KL University.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="features.html">Features</a><a href="payments.html">Payments</a>
+          <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="terms.html">Terms & Conditions</a><a href="privacy.html">Privacy Policy</a>
+          <a href="refund.html">Refund Policy</a><a href="gateway.html">Payment Gateway</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="contact.html">Contact Us</a><a href="faq.html">FAQ</a>
+          <a href="../index.html">App Login</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 KL ONE. Built for KL University. All rights reserved.</p>
+        <p>Payments powered by <strong>Cashfree</strong> · Hosted on <strong>Vercel</strong></p>
+      </div>
+    </div>
+  </footer>
+  <script src="nav.js"></script>
+</body>
+</html>

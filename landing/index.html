@@ -7,43 +7,43 @@
   <meta name="description" content="KL ONE is the official campus super-app for KL University. Order food, pay merchants, earn K-Coins, and manage your campus life — all in one place." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/landing/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-  <!-- NAV -->
+  <!-- ── NAV ── -->
   <nav class="nav" id="navbar">
     <div class="nav-inner">
-      <a href="/" class="nav-logo">KL<span>ONE</span></a>
+      <a href="index.html" class="nav-logo">KL<span>ONE</span></a>
       <ul class="nav-links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/landing/features.html">Features</a></li>
-        <li><a href="/landing/payments.html">Payments</a></li>
-        <li><a href="/landing/ordering.html">Ordering</a></li>
-        <li><a href="/landing/about.html">About</a></li>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="payments.html">Payments</a></li>
+        <li><a href="ordering.html">Ordering</a></li>
+        <li><a href="about.html">About</a></li>
       </ul>
       <div class="nav-actions">
-        <a href="/app" class="btn-ghost">Sign In</a>
-        <a href="/app" class="btn-primary">Get Started</a>
+        <a href="../index.html" class="btn-ghost">Sign In</a>
+        <a href="../index.html" class="btn-primary">Get Started</a>
       </div>
       <button class="hamburger" id="hamburger" aria-label="Menu">
         <span></span><span></span><span></span>
       </button>
     </div>
     <div class="mobile-menu" id="mobileMenu">
-      <a href="/">Home</a>
-      <a href="/landing/features.html">Features</a>
-      <a href="/landing/payments.html">Payments</a>
-      <a href="/landing/ordering.html">Ordering</a>
-      <a href="/landing/about.html">About</a>
-      <a href="/landing/terms.html">Terms</a>
-      <a href="/landing/privacy.html">Privacy</a>
-      <a href="/app" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="payments.html">Payments</a>
+      <a href="ordering.html">Ordering</a>
+      <a href="about.html">About</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="../index.html" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
     </div>
   </nav>
 
-  <!-- HERO -->
+  <!-- ── HERO ── -->
   <section class="hero">
     <div class="hero-glow"></div>
     <div class="hero-glow hero-glow-2"></div>
@@ -52,19 +52,20 @@
       <h1 class="hero-title">One App for<br/><span class="gradient-text">Campus Life</span></h1>
       <p class="hero-sub">Order food from campus canteens, pay merchants instantly via UPI, earn K-Coins rewards, and track every transaction — all from a single super-app built for KL University.</p>
       <div class="hero-cta">
-        <a href="/app" class="btn-primary btn-lg">Get Started Free</a>
-        <a href="/landing/features.html" class="btn-ghost btn-lg">Explore Features</a>
+        <a href="../index.html" class="btn-primary btn-lg">Get Started Free</a>
+        <a href="features.html" class="btn-ghost btn-lg">Explore Features</a>
       </div>
       <div class="hero-stats">
         <div class="stat"><span class="stat-num">10K+</span><span class="stat-label">Students</span></div>
         <div class="stat-divider"></div>
         <div class="stat"><span class="stat-num">50+</span><span class="stat-label">Outlets</span></div>
         <div class="stat-divider"></div>
-        <div class="stat"><span class="stat-num">Real-time</span><span class="stat-label">Order Tracking</span></div>
+        <div class="stat"><span class="stat-num">₹2.50</span><span class="stat-label">Platform Fee</span></div>
         <div class="stat-divider"></div>
         <div class="stat"><span class="stat-num">99.9%</span><span class="stat-label">Uptime</span></div>
       </div>
     </div>
+    <!-- floating cards -->
     <div class="float-card float-card-1 glass-card">
       <div class="float-icon">🍛</div>
       <div>
@@ -81,7 +82,21 @@
     </div>
   </section>
 
-  <!-- FEATURES GRID -->
+  <!-- ── TRUSTED BY ── -->
+  <section class="trusted">
+    <div class="container">
+      <p class="trusted-label">Powered by</p>
+      <div class="trusted-logos">
+        <div class="trust-badge">🔥 Firebase</div>
+        <div class="trust-badge">💳 Cashfree Payments</div>
+        <div class="trust-badge">⚡ Supabase</div>
+        <div class="trust-badge">▲ Vercel</div>
+        <div class="trust-badge">🔒 256-bit SSL</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES GRID ── -->
   <section class="section">
     <div class="container">
       <div class="section-header">
@@ -127,7 +142,7 @@
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
+  <!-- ── HOW IT WORKS ── -->
   <section class="section section-dark">
     <div class="container">
       <div class="section-header">
@@ -156,7 +171,7 @@
     </div>
   </section>
 
-  <!-- PAYMENT HIGHLIGHT -->
+  <!-- ── PAYMENT HIGHLIGHT ── -->
   <section class="section">
     <div class="container">
       <div class="split-section">
@@ -166,11 +181,12 @@
           <p class="section-sub" style="text-align:left;">Every transaction on KL ONE is processed through Cashfree's PCI-DSS compliant payment gateway. Your money moves safely, instantly, and transparently.</p>
           <ul class="check-list">
             <li>✓ UPI split payments with automatic vendor settlement</li>
+            <li>✓ ₹2.50 flat platform fee — no hidden charges</li>
             <li>✓ Real-time webhook confirmation</li>
             <li>✓ Instant merchant payouts</li>
             <li>✓ Full transaction history for students & merchants</li>
           </ul>
-          <a href="/landing/payments.html" class="btn-primary" style="margin-top:24px;display:inline-block;">Learn About Payments →</a>
+          <a href="payments.html" class="btn-primary" style="margin-top:24px;display:inline-block;">Learn About Payments →</a>
         </div>
         <div class="split-visual">
           <div class="payment-card glass-card">
@@ -178,10 +194,11 @@
               <span class="payment-logo">KL ONE Pay</span>
               <span class="payment-status success">● Paid</span>
             </div>
-            <div class="payment-amount">₹80.00</div>
+            <div class="payment-amount">₹82.50</div>
             <div class="payment-breakdown">
-              <div class="pb-row"><span>Biryani × 1</span><span>₹80.00</span></div>
-              <div class="pb-row pb-total"><span>Total paid</span><span>₹80.00</span></div>
+              <div class="pb-row"><span>Food total</span><span>₹80.00</span></div>
+              <div class="pb-row"><span>Platform fee</span><span>₹2.50</span></div>
+              <div class="pb-row pb-total"><span>Total paid</span><span>₹82.50</span></div>
             </div>
             <div class="payment-footer">
               <span>🔒 Secured by Cashfree</span>
@@ -193,7 +210,7 @@
     </div>
   </section>
 
-  <!-- K-COINS -->
+  <!-- ── K-COINS ── -->
   <section class="section section-dark">
     <div class="container">
       <div class="section-header">
@@ -226,17 +243,17 @@
     </div>
   </section>
 
-  <!-- CTA -->
+  <!-- ── CTA ── -->
   <section class="cta-section">
     <div class="cta-glow"></div>
     <div class="container">
       <h2 class="cta-title">Ready to simplify campus life?</h2>
       <p class="cta-sub">Join thousands of KL University students already using KL ONE.</p>
-      <a href="/app" class="btn-primary btn-lg">Get Started — It's Free</a>
+      <a href="../index.html" class="btn-primary btn-lg">Get Started — It's Free</a>
     </div>
   </section>
 
-  <!-- FOOTER -->
+  <!-- ── FOOTER ── -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
@@ -246,23 +263,23 @@
         </div>
         <div class="footer-col">
           <h4>Product</h4>
-          <a href="/landing/features.html">Features</a>
-          <a href="/landing/payments.html">Payments</a>
-          <a href="/landing/ordering.html">Ordering</a>
-          <a href="/landing/about.html">About</a>
+          <a href="features.html">Features</a>
+          <a href="payments.html">Payments</a>
+          <a href="ordering.html">Ordering</a>
+          <a href="about.html">About</a>
         </div>
         <div class="footer-col">
           <h4>Legal</h4>
-          <a href="/landing/terms.html">Terms & Conditions</a>
-          <a href="/landing/privacy.html">Privacy Policy</a>
-          <a href="/landing/refund.html">Refund Policy</a>
-          <a href="/landing/gateway.html">Payment Gateway</a>
+          <a href="terms.html">Terms & Conditions</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="refund.html">Refund Policy</a>
+          <a href="gateway.html">Payment Gateway</a>
         </div>
         <div class="footer-col">
           <h4>Support</h4>
-          <a href="/landing/contact.html">Contact Us</a>
-          <a href="/landing/faq.html">FAQ</a>
-          <a href="/app">App Login</a>
+          <a href="contact.html">Contact Us</a>
+          <a href="faq.html">FAQ</a>
+          <a href="../index.html">App Login</a>
         </div>
       </div>
       <div class="footer-bottom">
@@ -272,6 +289,6 @@
     </div>
   </footer>
 
-  <script src="/landing/nav.js"></script>
+  <script src="nav.js"></script>
 </body>
 </html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Features — KL ONE</title>
+  <meta name="description" content="Explore all features of KL ONE — campus food ordering, UPI payments, K-Coins rewards, direct pay, and more." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">KL<span>ONE</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="payments.html">Payments</a></li>
+        <li><a href="ordering.html">Ordering</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="../index.html" class="btn-ghost">Sign In</a>
+        <a href="../index.html" class="btn-primary">Get Started</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="payments.html">Payments</a>
+      <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+      <a href="../index.html" class="btn-primary" style="text-align:center;margin-top:8px;">Get Started</a>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-glow"></div>
+    <div class="container">
+      <div class="badge">✨ Platform Features</div>
+      <h1>Everything in<br/><span class="gradient-text">One App</span></h1>
+      <p>KL ONE is a complete campus super-app. Here's everything it can do for students, merchants, and admins.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge">🎓 For Students</div>
+        <h2 class="section-title">Student Features</h2>
+      </div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-card-icon">🏪</div>
+          <h3>Browse Campus Outlets</h3>
+          <p>Discover all campus canteens with live open/closed status, ratings, block location, and food categories.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🛒</div>
+          <h3>Food Ordering</h3>
+          <p>Browse menus, add items to cart, and checkout with UPI in under 30 seconds.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">📱</div>
+          <h3>Real-time Order Tracking</h3>
+          <p>Watch your order status update live from pending to ready — no refreshing needed.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🔗</div>
+          <h3>Direct Pay</h3>
+          <p>Pay any campus merchant directly via UPI without placing a food order. Great for quick purchases.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🪙</div>
+          <h3>K-Coins Rewards</h3>
+          <p>Earn 5 K-Coins on every order. Build daily streaks for bonus multipliers.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">📊</div>
+          <h3>Transaction History</h3>
+          <p>Full history of all payments, orders, and K-Coins earned — searchable and filterable.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🎫</div>
+          <h3>Order Tokens</h3>
+          <p>Each order gets a unique token. Show it at the counter for fast, confusion-free pickup.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🆘</div>
+          <h3>Support Tickets</h3>
+          <p>Raise a support ticket for any issue — payment problems, wrong orders, or general queries.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge">🏪 For Merchants</div>
+        <h2 class="section-title">Merchant Features</h2>
+      </div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-card-icon">📊</div>
+          <h3>Live Order Dashboard</h3>
+          <p>See all incoming orders in real time. Accept, prepare, and complete orders from one screen.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🍽️</div>
+          <h3>Menu Management</h3>
+          <p>Add, edit, delete menu items. Toggle availability instantly — changes reflect immediately for students.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🔔</div>
+          <h3>Real-time Alerts</h3>
+          <p>Instant notifications for new orders and direct payments via Socket.io and Firestore.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">💰</div>
+          <h3>Automatic UPI Payouts</h3>
+          <p>Payments go directly to your UPI VPA via Cashfree split. No manual collection needed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge">⚙️ For Admins</div>
+        <h2 class="section-title">Admin Features</h2>
+      </div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-card-icon">🏗️</div>
+          <h3>Outlet Management</h3>
+          <p>Create, edit, and delete campus outlets. Assign merchants, set categories, and manage timings.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">📈</div>
+          <h3>Platform Analytics</h3>
+          <p>View total orders, revenue, platform fees collected, and active users across the campus.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">🎫</div>
+          <h3>Support Management</h3>
+          <p>View and resolve all student support tickets. Mark tickets as resolved or closed.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">💳</div>
+          <h3>Transaction Oversight</h3>
+          <p>Full visibility into all platform transactions, payment statuses, and K-Coins awarded.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Feature Comparison</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Feature</th><th>Student</th><th>Merchant</th><th>Admin</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Browse campus canteens</td><td class="td-green">✓</td><td>—</td><td class="td-green">✓</td></tr>
+            <tr><td>Order food + UPI checkout</td><td class="td-green">✓</td><td>—</td><td>—</td></tr>
+            <tr><td>Real-time order tracking</td><td class="td-green">✓</td><td class="td-green">✓</td><td class="td-green">✓</td></tr>
+            <tr><td>K-Coins rewards</td><td class="td-green">✓</td><td>—</td><td>—</td></tr>
+            <tr><td>Direct Pay (UPI)</td><td class="td-green">✓</td><td>—</td><td>—</td></tr>
+            <tr><td>Transaction history</td><td class="td-green">✓</td><td class="td-green">✓</td><td class="td-green">✓</td></tr>
+            <tr><td>Manage menu items</td><td>—</td><td class="td-green">✓</td><td class="td-green">✓</td></tr>
+            <tr><td>Manage outlets</td><td>—</td><td>—</td><td class="td-green">✓</td></tr>
+            <tr><td>Accept / reject orders</td><td>—</td><td class="td-green">✓</td><td>—</td></tr>
+            <tr><td>Platform analytics</td><td>—</td><td>—</td><td class="td-green">✓</td></tr>
+            <tr><td>Support tickets</td><td class="td-green">✓</td><td>—</td><td class="td-green">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="cta-glow"></div>
+    <div class="container">
+      <h2 class="cta-title">All features. Zero cost.</h2>
+      <p class="cta-sub">KL ONE is free for all KL University students and merchants.</p>
+      <a href="../index.html" class="btn-primary btn-lg">Get Started Free</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="nav-logo">KL<span>ONE</span></div>
+          <p>The official campus super-app for KL University.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="features.html">Features</a><a href="payments.html">Payments</a>
+          <a href="ordering.html">Ordering</a><a href="about.html">About</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="terms.html">Terms & Conditions</a><a href="privacy.html">Privacy Policy</a>
+          <a href="refund.html">Refund Policy</a><a href="gateway.html">Payment Gateway</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="contact.html">Contact Us</a><a href="faq.html">FAQ</a>
+          <a href="../index.html">App Login</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 KL ONE. Built for KL University. All rights reserved.</p>
+        <p>Payments powered by <strong>Cashfree</strong> · Hosted on <strong>Vercel</strong></p>
+      </div>
+    </div>
+  </footer>
+  <script src="nav.js"></script>
+</body>
+</html>
